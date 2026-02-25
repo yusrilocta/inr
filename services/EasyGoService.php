@@ -75,8 +75,8 @@ class EasyGoService {
     public function getTotalKm($start, $end, $vehicleIds = [], $nopolList = [])
     {
         return $this->request("/api/report/total_km", [
-            "start_time"   => $start,             // format: yyyy-MM-dd HH:mm:ss
-            "stop_time"    => $end,
+            "start_time" => "1970-01-01",
+            "stop_time" => "2026-02-24",
             "lstVehicleId" => $vehicleIds,        // array
             "lstNoPol"     => $nopolList,         // array
             "encrypted"    => 0

@@ -46,13 +46,17 @@ include 'core/header.php';
     <!-- Body -->
     <div class="card-body">
 
-      <?php
-      // Default tanggal hari ini
-      $start = $_GET['start'] ?? date("Y-m-d 00:00:00");
-      $end   = $_GET['end']   ?? date("Y-m-d 23:59:59");
+<?php
+if (!empty($_GET['start']) && !empty($_GET['end'])) {
+    $start = $_GET['start'];
+    $end   = $_GET['end'];
+} else {
+    $start = "2016-01-01 00:00:00";
+    $end   = date("Y-m-d 23:59:59", strtotime("-1 day"));
+}
 
-      $startInput = date("Y-m-d\TH:i", strtotime($start));
-      $endInput   = date("Y-m-d\TH:i", strtotime($end));
+$startInput = date("Y-m-d\TH:i", strtotime($start));
+$endInput   = date("Y-m-d\TH:i", strtotime($end));
       ?>
 
       <!-- Filter -->
