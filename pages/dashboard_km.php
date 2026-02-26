@@ -3,150 +3,177 @@ require_once __DIR__ . '/../services/EasyGoService.php';
 
 $easygo = new EasyGoService();
 
-// periode hari ini
-$start = date("Y-m-d 00:00:00");
-$end   = date("Y-m-d 23:59:59");
+if (!empty($_GET['start']) && !empty($_GET['end'])) {
+    $startDate = $_GET['start'];
+    $endDate   = $_GET['end'];
+} else {
+    $startDate = "2020-01-01";
+    $endDate   = date("Y-m-d", strtotime("-1 day"));
+}
 
-// 1️⃣ Ambil semua kendaraan
+$start = $startDate . " 00:00:00";
+$end   = $endDate . " 23:59:59";
+
+$search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$rowsPerPage = 10;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+
 $vehicleResponse = $easygo->getVehicles();
 $vehicles = [];
 
 if ($vehicleResponse['ResponseCode'] == 1) {
     $vehicles = $vehicleResponse['Data'];
 } else {
-    echo "<div class='alert alert-danger'>{$vehicleResponse['ResponseMsg']}</div>";
+    include 'core/header.php';
+    echo "<div class='container-fluid py-4'><div class='alert alert-danger'>{$vehicleResponse['ResponseMsg']}</div></div>";
+    include 'core/footer.php';
     return;
 }
 
-// siapkan array untuk total km
-$vehicleIds = array_column($vehicles, 'vehicle_id');
-$nopolList  = array_column($vehicles, 'nopol');
+if ($search !== '') {
+    $searchLower = strtolower($search);
+    $vehicles = array_values(array_filter($vehicles, function ($row) use ($searchLower) {
+        $nopol = strtolower($row['nopol'] ?? '');
+        $driver = strtolower($row['driver_nm'] ?? '');
+        $brand = strtolower($row['brand'] ?? '');
+        $model = strtolower($row['model'] ?? '');
+        $remark = strtolower($row['remark'] ?? '');
 
-// 2️⃣ Ambil total KM
-$kmResponse = $easygo->getTotalKm($start, $end, $vehicleIds, $nopolList);
+        return strpos($nopol, $searchLower) !== false
+            || strpos($driver, $searchLower) !== false
+            || strpos($brand, $searchLower) !== false
+            || strpos($model, $searchLower) !== false
+            || strpos($remark, $searchLower) !== false;
+    }));
+}
 
+$totalRows = count($vehicles);
+$totalPages = max(1, (int)ceil($totalRows / $rowsPerPage));
+$currentPage = min($currentPage, $totalPages);
+$offset = ($currentPage - 1) * $rowsPerPage;
+$pagedVehicles = array_slice($vehicles, $offset, $rowsPerPage);
+
+$vehicleIds = array_column($pagedVehicles, 'vehicle_id');
+$nopolList  = array_column($pagedVehicles, 'nopol');
 $totalKmData = [];
 
-if ($kmResponse['ResponseCode'] == 1) {
-    foreach ($kmResponse['Data'] as $km) {
-        $totalKmData[$km['vehicle_id']] = $km['total_km'];
+if (!empty($vehicleIds)) {
+    $kmResponse = $easygo->getTotalKm($start, $end, $vehicleIds, $nopolList);
+    if ($kmResponse['ResponseCode'] == 1) {
+        foreach ($kmResponse['Data'] as $km) {
+            $totalKmData[$km['vehicle_id']] = $km['total_km'];
+        }
     }
 }
+
+$queryParams = [
+    'page' => 'dashboard_km',
+    'start' => $startDate,
+    'end' => $endDate,
+    'q' => $search,
+];
+
+$prevParams = $queryParams;
+$prevParams['p'] = max(1, $currentPage - 1);
+$nextParams = $queryParams;
+$nextParams['p'] = min($totalPages, $currentPage + 1);
+
 include 'core/header.php';
 ?>
 <div class="container-fluid py-4">
 
   <div class="card">
-    
-    <!-- Header -->
+
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Total KM Kendaraan</h5>
     </div>
 
-    <!-- Body -->
     <div class="card-body">
-
-<?php
-if (!empty($_GET['start']) && !empty($_GET['end'])) {
-    $start = $_GET['start'];
-    $end   = $_GET['end'];
-} else {
-    $start = "2016-01-01 00:00:00";
-    $end   = date("Y-m-d 23:59:59", strtotime("-1 day"));
-}
-
-$startInput = date("Y-m-d\TH:i", strtotime($start));
-$endInput   = date("Y-m-d\TH:i", strtotime($end));
-      ?>
-
-      <!-- Filter -->
-       <div class="row">
+      <div class="row">
         <div class="col">
-        <form method="GET" class="row g-3 mb-4">
+          <form method="GET" class="row g-3 mb-4">
             <input type="hidden" name="page" value="dashboard_km">
+            <input type="hidden" name="q" value="<?= htmlspecialchars($search) ?>">
 
-        <div class="col-md-4">
-          <input type="datetime-local" 
-                 name="start" 
-                 value="<?= $startInput ?>" 
-                 class="form-control">
+            <div class="col-md-4">
+              <input type="date" name="start" value="<?= htmlspecialchars($startDate) ?>" class="form-control">
+            </div>
+
+            <div class="col-md-4">
+              <input type="date" name="end" value="<?= htmlspecialchars($endDate) ?>" class="form-control">
+            </div>
+
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="submit" class="btn bg-gradient-primary w-100">Filter</button>
+            </div>
+          </form>
         </div>
 
-        <div class="col-md-4">
-          <input type="datetime-local" 
-                 name="end" 
-                 value="<?= $endInput ?>" 
-                 class="form-control">
-        </div>
-
-        <div class="col-md-4 d-flex align-items-end">
-          <button type="submit" class="btn bg-gradient-primary w-100">
-            Filter
-          </button>
-        </div>
-      </form>
-        </div>
         <div class="col">
-<div class="row mb-3 justify-content-end">
-  <div class="col-md-4">
-    <input type="text" 
-           id="searchInput" 
-           class="form-control" 
-           placeholder="Cari No Polisi / Driver / Kendaraan...">
-  </div>
-</div>
+          <form method="GET" class="row mb-3 justify-content-end">
+            <input type="hidden" name="page" value="dashboard_km">
+            <input type="hidden" name="start" value="<?= htmlspecialchars($startDate) ?>">
+            <input type="hidden" name="end" value="<?= htmlspecialchars($endDate) ?>">
+            <div class="col-md-6">
+              <input type="text" name="q" class="form-control" placeholder="Cari No Polisi / Driver / Kendaraan..." value="<?= htmlspecialchars($search) ?>">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn bg-gradient-secondary w-100">Cari</button>
+            </div>
+          </form>
         </div>
-       </div>
-      
+      </div>
 
-      <!-- Table -->
       <div class="table-responsive">
         <table id="vehicleTable" class="table align-items-center mb-0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th data-column="0">No Polisi</th>
-            <th data-column="1">Driver</th>
-            <th data-column="2">Brand</th>
-            <th data-column="3">Model</th>
-            <th data-column="4">Total KM</th>
-        </tr>
-    </thead>
-          <tbody>
-
-          <?php foreach ($vehicles as $index => $row): ?>
+          <thead>
             <tr>
-              <td><?= $index + 1 ?></td>
-              <td><?= $row['nopol'] ?></td>
-              <td><?= $row['driver_nm'] ?></td>
-              <td><?= $row['brand'] . ' - ' . $row['model'] ?></td>
-              <td>
-                <?php if($row['remark'] == "Active"): ?>
-                  <span class="badge bg-gradient-success">Active</span>
-                <?php else: ?>
-                  <span class="badge bg-gradient-secondary">
-                    <?= $row['remark'] ?>
-                  </span>
-                <?php endif; ?>
-              </td>
-              <td>
-                <?= $totalKmData[$row['vehicle_id']] ?>
-              </td>
+              <th>No</th>
+              <th>No Polisi</th>
+              <th>Driver</th>
+              <th>Kendaraan</th>
+              <th>Status</th>
+              <th>Total KM</th>
             </tr>
-          <?php endforeach; ?>
-
+          </thead>
+          <tbody>
+          <?php if (empty($pagedVehicles)): ?>
+            <tr>
+              <td colspan="6" class="text-center">Data tidak ditemukan</td>
+            </tr>
+          <?php else: ?>
+            <?php foreach ($pagedVehicles as $index => $row): ?>
+              <tr>
+                <td><?= $offset + $index + 1 ?></td>
+                <td><?= htmlspecialchars($row['nopol'] ?? '-') ?></td>
+                <td><?= htmlspecialchars($row['driver_nm'] ?? '-') ?></td>
+                <td><?= htmlspecialchars(($row['brand'] ?? '-') . ' - ' . ($row['model'] ?? '-')) ?></td>
+                <td>
+                  <?php if (($row['remark'] ?? '') === 'Active'): ?>
+                    <span class="badge bg-gradient-success">Active</span>
+                  <?php else: ?>
+                    <span class="badge bg-gradient-secondary"><?= htmlspecialchars($row['remark'] ?? '-') ?></span>
+                  <?php endif; ?>
+                </td>
+                <td><?= htmlspecialchars((string)($totalKmData[$row['vehicle_id']] ?? 0)) ?></td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
           </tbody>
         </table>
       </div>
 
-      <!-- Pagination -->
       <div class="d-flex justify-content-between align-items-center mt-3">
         <div>
-          <span id="paginationInfo"></span>
+          <?php if ($totalRows === 0): ?>
+            <span>Data tidak ditemukan</span>
+          <?php else: ?>
+            <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalRows ?> data)</span>
+          <?php endif; ?>
         </div>
-        <div>
-          <button id="prevBtn" class="btn btn-sm bg-gradient-secondary">Prev</button>
-          <button id="nextBtn" class="btn btn-sm bg-gradient-secondary">Next</button>
+        <div class="d-flex gap-2">
+          <a href="?<?= http_build_query($prevParams) ?>" class="btn btn-sm bg-gradient-secondary <?= $currentPage <= 1 ? 'disabled' : '' ?>">Prev</a>
+          <a href="?<?= http_build_query($nextParams) ?>" class="btn btn-sm bg-gradient-secondary <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
         </div>
       </div>
 
@@ -154,234 +181,4 @@ $endInput   = date("Y-m-d\TH:i", strtotime($end));
   </div>
 
 </div>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    const table = document.getElementById("vehicleTable");
-    const allRows = Array.from(table.querySelectorAll("tbody tr"));
-
-    const rowsPerPage = 10;
-    let currentPage = 1;
-    let filteredRows = [...allRows];
-    let sortDirection = 1; // 1 = ASC, -1 = DESC
-    let currentSortColumn = null;
-
-    const prevBtn = document.getElementById("prevBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const info = document.getElementById("paginationInfo");
-    const searchInput = document.getElementById("searchInput");
-    const headers = table.querySelectorAll("th");
-
-    function renderTable() {
-
-        allRows.forEach(row => row.style.display = "none");
-
-        const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
-        if (currentPage > totalPages) currentPage = 1;
-
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-
-        for (let i = start; i < end && i < filteredRows.length; i++) {
-            filteredRows[i].style.display = "";
-        }
-
-        info.innerText = filteredRows.length === 0
-            ? "Data tidak ditemukan"
-            : "Page " + currentPage + " of " + totalPages;
-
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage >= totalPages;
-    }
-
-    function filterTable() {
-        const keyword = searchInput.value.toLowerCase();
-
-        filteredRows = allRows.filter(row => {
-            return row.innerText.toLowerCase().includes(keyword);
-        });
-
-        currentPage = 1;
-        renderTable();
-    }
-
-    function sortTable(columnIndex) {
-
-        if (currentSortColumn === columnIndex) {
-            sortDirection *= -1;
-        } else {
-            sortDirection = 1;
-            currentSortColumn = columnIndex;
-        }
-
-        filteredRows.sort((a, b) => {
-
-            let cellA = a.children[columnIndex].innerText.trim();
-            let cellB = b.children[columnIndex].innerText.trim();
-
-            // cek angka
-            let numA = parseFloat(cellA.replace(/[^0-9.-]+/g,""));
-            let numB = parseFloat(cellB.replace(/[^0-9.-]+/g,""));
-
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return (numA - numB) * sortDirection;
-            }
-
-            return cellA.localeCompare(cellB) * sortDirection;
-        });
-
-        currentPage = 1;
-        renderTable();
-    }
-
-    // Event Search
-    searchInput.addEventListener("keyup", filterTable);
-
-    // Event Pagination
-    prevBtn.addEventListener("click", function () {
-        if (currentPage > 1) {
-            currentPage--;
-            renderTable();
-        }
-    });
-
-    nextBtn.addEventListener("click", function () {
-        const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderTable();
-        }
-    });
-
-    // Event Sorting
-    headers.forEach((header, index) => {
-        header.style.cursor = "pointer";
-        header.addEventListener("click", function () {
-            sortTable(index);
-        });
-    });
-
-    renderTable();
-});
-</script>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    const table = document.getElementById("vehicleTable");
-    const allRows = Array.from(table.querySelectorAll("tbody tr"));
-
-    const rowsPerPage = 10;
-    let currentPage = 1;
-    let filteredRows = [...allRows];
-
-    const prevBtn = document.getElementById("prevBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const info = document.getElementById("paginationInfo");
-    const searchInput = document.getElementById("searchInput");
-
-    function renderTable() {
-
-        allRows.forEach(row => row.style.display = "none");
-
-        const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
-        if (currentPage > totalPages) currentPage = 1;
-
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-
-        for (let i = start; i < end && i < filteredRows.length; i++) {
-            filteredRows[i].style.display = "";
-        }
-
-        info.innerText = filteredRows.length === 0
-            ? "Data tidak ditemukan"
-            : "Page " + currentPage + " of " + totalPages;
-
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage >= totalPages;
-    }
-
-    function filterTable() {
-        const keyword = searchInput.value.toLowerCase();
-
-        filteredRows = allRows.filter(row => {
-            return row.innerText.toLowerCase().includes(keyword);
-        });
-
-        currentPage = 1;
-        renderTable();
-    }
-
-    searchInput.addEventListener("keyup", filterTable);
-
-    prevBtn.addEventListener("click", function () {
-        if (currentPage > 1) {
-            currentPage--;
-            renderTable();
-        }
-    });
-
-    nextBtn.addEventListener("click", function () {
-        const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderTable();
-        }
-    });
-
-    renderTable();
-
-});
-</script>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    const table = document.getElementById("vehicleTable");
-    const rows = table.querySelectorAll("tbody tr");
-
-    const rowsPerPage = 10;
-    let currentPage = 1;
-
-    const totalPages = Math.ceil(rows.length / rowsPerPage);
-
-    const prevBtn = document.getElementById("prevBtn");
-    const nextBtn = document.getElementById("nextBtn");
-    const info = document.getElementById("paginationInfo");
-
-    function showPage(page) {
-        currentPage = page;
-
-        rows.forEach((row, index) => {
-            row.style.display = "none";
-        });
-
-        const start = (page - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-
-        for (let i = start; i < end && i < rows.length; i++) {
-            rows[i].style.display = "";
-        }
-
-        info.innerText = "Page " + currentPage + " of " + totalPages;
-
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage === totalPages;
-    }
-
-    prevBtn.addEventListener("click", function () {
-        if (currentPage > 1) {
-            showPage(currentPage - 1);
-        }
-    });
-
-    nextBtn.addEventListener("click", function () {
-        if (currentPage < totalPages) {
-            showPage(currentPage + 1);
-        }
-    });
-
-    showPage(1);
-
-});
-</script>
 <?php include 'core/footer.php'; ?>
