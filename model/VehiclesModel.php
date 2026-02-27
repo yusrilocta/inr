@@ -52,6 +52,7 @@ class VehiclesModel {
         $driver_nm      = $this->conn->real_escape_string($data['driver_nm']);
         $remark         = $this->conn->real_escape_string($data['remark']);
         $engine_no      = $this->conn->real_escape_string($data['engine_no']);
+        $total_km      = $this->conn->real_escape_string($data['total_km']);
         $engine_capacity= (int)$data['engine_capacity'];
         $kir_no         = $this->conn->real_escape_string($data['kir_no']);
         $stnk_no        = $this->conn->real_escape_string($data['stnk_no']);
@@ -66,12 +67,12 @@ class VehiclesModel {
         $sql = "
             INSERT INTO {$this->table}
             (vehicle_id, gps_sn, nopol, type, model, brand,
-             car_group, driver_nm, remark, engine_no, engine_capacity,
+             car_group, driver_nm, remark, engine_no,total_km, engine_capacity,
              kir_no, stnk_no, bpkb_no, chasis_no,
              year_production, legal_date)
             VALUES
             ('$vehicle_id', '$gps_sn', '$nopol', '$type', '$model', '$brand',
-             '$car_group', '$driver_nm', '$remark', '$engine_no', '$engine_capacity',
+             '$car_group', '$driver_nm', '$remark', '$engine_no','$total_km','$engine_capacity',
              '$kir_no', '$stnk_no', '$bpkb_no', '$chasis_no',
              '$year_production', $legal_date)
         ";
@@ -95,6 +96,7 @@ class VehiclesModel {
         $driver_nm      = $this->conn->real_escape_string($data['driver_nm']);
         $remark         = $this->conn->real_escape_string($data['remark']);
         $engine_no      = $this->conn->real_escape_string($data['engine_no']);
+        $total_km      = $this->conn->real_escape_string($data['total_km']);
         $engine_capacity= (int)$data['engine_capacity'];
         $kir_no         = $this->conn->real_escape_string($data['kir_no']);
         $stnk_no        = $this->conn->real_escape_string($data['stnk_no']);
@@ -117,6 +119,7 @@ class VehiclesModel {
                 driver_nm='$driver_nm',
                 remark='$remark',
                 engine_no='$engine_no',
+                total_km='$total_km',
                 engine_capacity='$engine_capacity',
                 kir_no='$kir_no',
                 stnk_no='$stnk_no',

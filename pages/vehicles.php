@@ -65,6 +65,7 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Model</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Type</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Driver</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Total KM</th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
         </thead>
@@ -83,6 +84,11 @@ include 'core/header.php';
             <td><?= $row['model'] ?></td>
             <td><?= $row['type'] ?></td>
             <td><?= $row['driver_nm'] ?></td>
+            <td>
+              <span class="badge bg-gradient-info">
+                <?= $row['total_km'] ?>
+              </span>
+            </td>
 
             <td class="text-end">
               <a href="index.php?page=vehicles&action=edit&id=<?= $row['id'] ?>" 
@@ -186,6 +192,9 @@ if ($action === 'edit') {
             <input type="text" name="driver_nm" class="form-control"
                    value="<?= $data_edit['driver_nm'] ?>">
           </div>
+          
+              <input type="hidden" name="total_km" class="form-control"
+                    value="<?= $data_edit['total_km'] ?>">
 
           <div class="col-md-6 mb-3">
             <label>Tahun Produksi</label>
