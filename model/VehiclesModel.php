@@ -59,6 +59,8 @@ class VehiclesModel {
         $bpkb_no        = $this->conn->real_escape_string($data['bpkb_no']);
         $chasis_no      = $this->conn->real_escape_string($data['chasis_no']);
         $year_production= $this->conn->real_escape_string($data['year_production']);
+        $last_service   = !empty($data['last_service']) ? "'" . date('Y-m-d', strtotime($data['last_service'])) . "'" : "NULL";
+        $last_km_service= !empty($data['last_km_service']) ? (int)$data['last_km_service'] : "NULL";
 
         $legal_date = !empty($data['legal_date'])
             ? "'" . date("Y-m-d", strtotime($data['legal_date'])) . "'"
@@ -69,12 +71,12 @@ class VehiclesModel {
             (vehicle_id, gps_sn, nopol, type, model, brand,
              car_group, driver_nm, remark, engine_no,total_km, engine_capacity,
              kir_no, stnk_no, bpkb_no, chasis_no,
-             year_production, legal_date)
+             year_production, legal_date, last_service, last_km_service)
             VALUES
             ('$vehicle_id', '$gps_sn', '$nopol', '$type', '$model', '$brand',
              '$car_group', '$driver_nm', '$remark', '$engine_no','$total_km','$engine_capacity',
              '$kir_no', '$stnk_no', '$bpkb_no', '$chasis_no',
-             '$year_production', $legal_date)
+             '$year_production', $legal_date, $last_service, $last_km_service)
         ";
 
         return $this->conn->query($sql);
@@ -103,6 +105,8 @@ class VehiclesModel {
         $bpkb_no        = $this->conn->real_escape_string($data['bpkb_no']);
         $chasis_no      = $this->conn->real_escape_string($data['chasis_no']);
         $year_production= $this->conn->real_escape_string($data['year_production']);
+        $last_service   = !empty($data['last_service']) ? "'" . date('Y-m-d', strtotime($data['last_service'])) . "'" : "NULL";
+        $last_km_service= !empty($data['last_km_service']) ? (int)$data['last_km_service'] : "NULL";
 
         $legal_date = !empty($data['legal_date'])
             ? "'" . date("Y-m-d", strtotime($data['legal_date'])) . "'"
@@ -126,7 +130,9 @@ class VehiclesModel {
                 bpkb_no='$bpkb_no',
                 chasis_no='$chasis_no',
                 year_production='$year_production',
-                legal_date=$legal_date
+                legal_date=$legal_date,
+                last_service=$last_service,
+                last_km_service=$last_km_service
             WHERE id=$id
         ";
 

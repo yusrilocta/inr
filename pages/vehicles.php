@@ -32,6 +32,22 @@ $data = $model->getAll();
 include 'core/header.php';
 ?>
 
+<style>
+.vehicle-overlaya {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.vehicle-overlay-card {
+  width: min(800px, 100%);
+}
+</style>
+
 <div class="container-fluid py-4">
 
 <div class="card shadow-lg border-0">
@@ -66,6 +82,8 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Type</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Driver</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Total KM</th>
+             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Service Terakhir</th>            
+             <th class="text-xs text-uppercase text-secondary font-weight-bolder">KM Service</th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
         </thead>
@@ -80,17 +98,22 @@ include 'core/header.php';
               </span>
             </td>
 
-            <td><?= $row['brand'] ?></td>
-            <td><?= $row['model'] ?></td>
-            <td><?= $row['type'] ?></td>
-            <td><?= $row['driver_nm'] ?></td>
+            <td><?= !empty($row['brand']) ? $row['brand'] : '?' ?></td>
+            <td><?= !empty($row['model']) ? $row['model'] : '?' ?></td>
+            <td><?= !empty($row['type']) ? $row['type'] : '?' ?></td>
+            <td><?= !empty($row['driver_nm']) ? $row['driver_nm'] : '?' ?></td>
             <td>
               <span class="badge bg-gradient-info">
-                <?= $row['total_km'] ?>
+                <?= !empty($row['total_km']) ? $row['total_km'] : '?' ?>
               </span>
             </td>
-
+              <td><?= !empty($row['last_service']) ? $row['last_service'] : '?' ?></td>
+              <td><?= $row['total_km']-$row['last_km_service'] ?></td>
             <td class="text-end">
+              <button class="btn btn-outline-info btn-sm" onclick="showDetailModal(<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>)">
+                Detail
+              </button>
+
               <a href="index.php?page=vehicles&action=edit&id=<?= $row['id'] ?>" 
                  class="btn btn-outline-warning btn-sm">
                  Edit
@@ -126,7 +149,9 @@ $data_edit = [
     'model' => '',
     'type' => '',
     'driver_nm' => '',
-    'year_production' => ''
+    'year_production' => '',
+    'last_service' => '',
+    'last_km_service' => ''
 ];
 
 if ($action === 'edit') {
@@ -137,16 +162,16 @@ if ($action === 'edit') {
 <style>
 .vehicle-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   background: rgba(15, 23, 42, 0.45);
-  z-index: 1050;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
-}
-.vehicle-overlay-card {
-  width: min(800px, 100%);
 }
 </style>
 
@@ -202,6 +227,18 @@ if ($action === 'edit') {
                    value="<?= $data_edit['year_production'] ?>">
           </div>
 
+          <div class="col-md-6 mb-3">
+            <label>Tanggal Service Terakhir</label>
+            <input type="date" name="last_service" class="form-control"
+                   value="<?= $data_edit['last_service'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>KM Service Terakhir</label>
+            <input type="number" name="last_km_service" class="form-control"
+                   value="<?= $data_edit['last_km_service'] ?>">
+          </div>
+
         </div>
 
         <div class="d-flex justify-content-between">
@@ -217,6 +254,143 @@ if ($action === 'edit') {
 </div>
 
 <?php endif; ?>
+
+<!-- DETAIL MODAL -->
+<div id="detailModalOverlay" class="vehicle-overlaya" style="display: none;">
+  <div class="card shadow-lg border-0 vehicle-overlay-card">
+
+    <div class="card-header d-flex justify-content-between">
+      <h5 id="detailTitle" class="mb-0">Detail Vehicle</h5>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeDetailModal()">Tutup</button>
+    </div>
+
+    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">ID Kendaraan</label>
+          <p id="detail_vehicle_id" class="fw-bold">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. Polisi</label>
+          <p id="detail_nopol" class="fw-bold">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">GPS SN</label>
+          <p id="detail_gps_sn">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Brand</label>
+          <p id="detail_brand">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Model</label>
+          <p id="detail_model">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Type</label>
+          <p id="detail_type">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Nama Driver</label>
+          <p id="detail_driver_nm">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Kelompok Kendaraan</label>
+          <p id="detail_car_group">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Total KM</label>
+          <p id="detail_total_km">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. Engine</label>
+          <p id="detail_engine_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Kapasitas Engine</label>
+          <p id="detail_engine_capacity">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. Chasis</label>
+          <p id="detail_chasis_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. KIR</label>
+          <p id="detail_kir_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. STNK</label>
+          <p id="detail_stnk_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">No. BPKB</label>
+          <p id="detail_bpkb_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Tahun Produksi</label>
+          <p id="detail_year_production">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Tanggal Legal</label>
+          <p id="detail_legal_date">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">Tanggal Service Terakhir</label>
+          <p id="detail_last_service">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="text-muted">KM Service Terakhir</label>
+          <p id="detail_last_km_service">-</p>
+        </div>
+        <div class="col-md-12 mb-3">
+          <label class="text-muted">Catatan</label>
+          <p id="detail_remark">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showDetailModal(rowData) {
+  const formatValue = (val) => !val || val === '' || val === null ? '?' : val;
+  
+  document.getElementById('detail_vehicle_id').textContent = formatValue(rowData.vehicle_id);
+  document.getElementById('detail_nopol').textContent = formatValue(rowData.nopol);
+  document.getElementById('detail_gps_sn').textContent = formatValue(rowData.gps_sn);
+  document.getElementById('detail_brand').textContent = formatValue(rowData.brand);
+  document.getElementById('detail_model').textContent = formatValue(rowData.model);
+  document.getElementById('detail_type').textContent = formatValue(rowData.type);
+  document.getElementById('detail_driver_nm').textContent = formatValue(rowData.driver_nm);
+  document.getElementById('detail_car_group').textContent = formatValue(rowData.car_group);
+  document.getElementById('detail_total_km').textContent = formatValue(rowData.total_km);
+  document.getElementById('detail_engine_no').textContent = formatValue(rowData.engine_no);
+  document.getElementById('detail_engine_capacity').textContent = formatValue(rowData.engine_capacity);
+  document.getElementById('detail_chasis_no').textContent = formatValue(rowData.chasis_no);
+  document.getElementById('detail_kir_no').textContent = formatValue(rowData.kir_no);
+  document.getElementById('detail_stnk_no').textContent = formatValue(rowData.stnk_no);
+  document.getElementById('detail_bpkb_no').textContent = formatValue(rowData.bpkb_no);
+  document.getElementById('detail_year_production').textContent = formatValue(rowData.year_production);
+  document.getElementById('detail_legal_date').textContent = formatValue(rowData.legal_date);
+  document.getElementById('detail_last_service').textContent = formatValue(rowData.last_service);
+  document.getElementById('detail_last_km_service').textContent = formatValue(rowData.last_km_service);
+  document.getElementById('detail_remark').textContent = formatValue(rowData.remark);
+  
+  document.getElementById('detailTitle').textContent = `Detail Vehicle - ${rowData.nopol || '?'}`;
+  document.getElementById('detailModalOverlay').style.display = 'flex';
+}
+
+function closeDetailModal() {
+  document.getElementById('detailModalOverlay').style.display = 'none';
+}
+
+document.getElementById('detailModalOverlay')?.addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeDetailModal();
+  }
+});
+</script>
+
 <script>
 let rowsPerPage = 10;
 let currentPage = 1;
