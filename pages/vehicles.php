@@ -218,8 +218,7 @@ if ($action === 'edit') {
                    value="<?= $data_edit['driver_nm'] ?>">
           </div>
           
-              <input type="hidden" name="total_km" class="form-control"
-                    value="<?= $data_edit['total_km'] ?>">
+              <input type="text" name="total_km" class="form-control" value="<?= !isset($data_edit['total_km']) ? 0 : $data_edit['total_km'] ?>">
 
           <div class="col-md-6 mb-3">
             <label>Tahun Produksi</label>
