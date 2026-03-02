@@ -71,4 +71,21 @@ class DashboardModel {
 
         return $result->fetch_all(MYSQLI_ASSOC);
     }
+
+    public function getCountChart() {
+
+        $sql ="
+        SELECT DATE(tanggal) as tgl, COUNT(*) as total
+        FROM riwayat_service
+        GROUP BY DATE(tanggal)
+        ORDER BY DATE(tanggal) ASC
+        ";
+
+        $result = $this->conn->query($sql);
+        if (!$result) {
+            return [];
+        }
+
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
 }

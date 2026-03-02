@@ -24,7 +24,10 @@ if ($action == 'delete') {
     exit;
 }
 
-$data = $model->getAll();
+// server-side search query and optional vehicle filter
+$search = trim($_GET['search'] ?? '');
+$vehicleFilter = trim($_GET['vehicle_id'] ?? '');
+$data = $model->getAll($search, $vehicleFilter);
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 
@@ -62,14 +65,28 @@ include 'core/header.php';
 
   <div class="card-body px-0 pt-3 pb-2">
     <div class="table-responsive p-3">
-
-      <div class="row mb-3 px-3 justify-content-end">
-        <div class="col-md-4">
-          <input type="text" id="searchInput"
-                 class="form-control"
-                 placeholder="Cari riwayat service...">
+      <?php if (!empty($vehicleFilter)): ?>
+        <div class="alert alert-info mb-3">
+          Menampilkan riwayat untuk vehicle <strong><?= htmlspecialchars($vehicleFilter) ?></strong>
+          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
-      </div>
+      <?php endif; ?>
+
+      <form method="GET" class="row mb-3 px-3 justify-content-end">
+        <input type="hidden" name="page" value="riwayat">
+        <?php if ($vehicleFilter !== ''): ?>
+          <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
+        <?php endif; ?>
+        <div class="col-md-4">
+          <div class="input-group">
+            <input type="text" name="search" id="searchInput" class="form-control"
+                   placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-outline-primary" type="submit">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+      </form>
 
       <table id="riwayatTable" class="table align-items-center mb-0">
         <thead>
@@ -366,14 +383,8 @@ const tbody = table.querySelector('tbody');
 const rows = Array.from(tbody.querySelectorAll('tr'));
 
 function displayTable() {
-  const searchValue = document.getElementById('searchInput').value.toLowerCase();
-
-  rows.forEach(row => {
-    const text = row.innerText.toLowerCase();
-    row.style.display = text.includes(searchValue) ? '' : 'none';
-  });
-
-  const visibleRows = rows.filter(row => row.style.display !== 'none');
+  // server-side search already applied; just paginate whatever rows are present
+  const visibleRows = rows;
 
   const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
   if (currentPage > totalPages) currentPage = totalPages || 1;
@@ -425,12 +436,11 @@ function renderInfo(totalData) {
     `Menampilkan ${start} - ${end} dari ${totalData} data`;
 }
 
-document.getElementById('searchInput').addEventListener('keyup', function () {
-  currentPage = 1;
-  displayTable();
-});
+// initial pagination render
 
+// render the first page of results once everything is defined
 displayTable();
+
 
 const vehicleSelect = document.getElementById('vehicleSelect');
 const nopolInput = document.getElementById('nopolInput');

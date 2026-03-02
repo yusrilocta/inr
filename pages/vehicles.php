@@ -75,7 +75,7 @@ include 'core/header.php';
       <table id="vehicleTable" class="table align-items-center mb-0">
         <thead>
           <tr>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">id Kend</th>
+            <!-- <th class="text-xs text-uppercase text-secondary font-weight-bolder">id Kend</th> -->
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">No pol</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Brand</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Model</th>
@@ -91,7 +91,7 @@ include 'core/header.php';
         <tbody>
         <?php while($row = $data->fetch_assoc()): ?>
           <tr>
-            <td><?= $row['vehicle_id'] ?></td>
+            <!-- <td> //$row['vehicle_id']</td> -->
             <td>
               <span class="badge bg-gradient-dark">
                 <?= $row['nopol'] ?>
@@ -123,6 +123,12 @@ include 'core/header.php';
                  class="btn btn-outline-danger btn-sm"
                  onclick="return confirm('Yakin hapus vehicle?')">
                  Hapus
+              </a>
+
+              <!-- diagnosa tombol menuju riwayat terfilter -->
+              <a href="index.php?page=riwayat&vehicle_id=<?= urlencode($row['vehicle_id']) ?>" 
+                 class="btn btn-outline-secondary btn-sm">
+                 Diagnosa
               </a>
             </td>
 

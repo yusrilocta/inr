@@ -10,15 +10,47 @@ class RiwayatModel {
     }
 
     /* ===============================
-       GET ALL
+       GET ALL (with optional server-side search)
     =============================== */
-    public function getAll() {
-        $stmt = $this->conn->prepare("
+    public function getAll($search = null, $vehicleId = null) {
+        $sql = "
             SELECT r.*, i.nama AS nama_barang
             FROM {$this->table} r
             LEFT JOIN inventori i ON r.id_barang = i.id
-            ORDER BY r.id DESC
-        ");
+        ";
+
+        $conditions = [];
+        $params = [];
+
+        if ($search !== null && $search !== '') {
+            // match search term against several relevant columns
+            $conditions[] = "(
+                r.vehicle_id LIKE ? OR
+                r.nopol LIKE ? OR
+                r.driver_nm LIKE ? OR
+                r.status LIKE ? OR
+                r.kategori LIKE ? OR
+                i.nama LIKE ?
+            )";
+            $like = "%{$search}%";
+            $params = array_merge($params, [$like, $like, $like, $like, $like, $like]);
+        }
+
+        if ($vehicleId !== null && $vehicleId !== '') {
+            $conditions[] = "r.vehicle_id = ?";
+            $params[] = $vehicleId;
+        }
+
+        if (!empty($conditions)) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        $sql .= " ORDER BY r.id DESC";
+        $stmt = $this->conn->prepare($sql);
+        if (!empty($params)) {
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         return $result->fetch_all(MYSQLI_ASSOC);

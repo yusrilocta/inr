@@ -5,6 +5,15 @@ require_once __DIR__ . '/../model/DashboardModel.php';
 $dashboardModel = new DashboardModel($conn);
 $totals = $dashboardModel->getSummary();
 $topSpareparts = $dashboardModel->getTopSparepartRiwayat(3);
+$getcountchart = $dashboardModel->getCountChart();
+
+$labels = [];
+$data = [];
+
+foreach ($getcountchart as $row) {
+    $labels[] = date('d M Y', strtotime($row['tgl']));
+    $data[] = (int)$row['total'];
+}
 
 include 'core/header.php';
 ?>
@@ -131,6 +140,82 @@ include 'core/header.php';
   </div>
 </div>
 
+<div class="container-fluid pb-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header pb-0">
+          <h6 class="mb-1">Grafik Service Harian</h6>
+          <p class="text-sm text-muted mb-0">Jumlah riwayat service per tanggal</p>
+        </div>
+        <div class="card-body p-3">
+          <div class="chart" style="height: 300px;">
+            <canvas id="line-chart-gradient" class="chart-canvas h-100 w-100"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+window.addEventListener("load", function () {
+  if (typeof Chart === "undefined") {
+    return;
+  }
+
+  var chartCanvas = document.getElementById("line-chart-gradient");
+  if (!chartCanvas) {
+    return;
+  }
+
+  var ctx1 = chartCanvas.getContext("2d");
+  var gradientStroke1 = ctx1.createLinearGradient(0, 230, 0, 50);
+  gradientStroke1.addColorStop(1, "rgba(94, 114, 228, 0.2)");
+  gradientStroke1.addColorStop(0.2, "rgba(94, 114, 228, 0.0)");
+  gradientStroke1.addColorStop(0, "rgba(94, 114, 228, 0)");
+
+  new Chart(ctx1, {
+    type: "line",
+    data: {
+      labels: <?= json_encode($labels); ?>,
+      datasets: [{
+        label: "Jumlah Service",
+        tension: 0.4,
+        borderWidth: 3,
+        pointRadius: 4,
+        borderColor: "#5e72e4",
+        backgroundColor: gradientStroke1,
+        fill: true,
+        data: <?= json_encode($data); ?>,
+        maxBarThickness: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true
+        }
+      },
+      interaction: {
+        intersect: false,
+        mode: "index"
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+});
+</script>
 <?php
 include 'core/footer.php';
 ?>
