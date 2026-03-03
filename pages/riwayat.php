@@ -181,6 +181,8 @@ if ($action === 'edit') {
         $data_edit = $found;
     }
 }
+
+$isCreateMode = $action === 'create';
 ?>
 
 <div class="riwayat-overlay">
@@ -255,34 +257,81 @@ if ($action === 'edit') {
             </select>
           </div>
 
-          <div class="col-md-6 mb-3">
-            <label>Barang (Opsional)</label>
-            <select id="barangSelect" name="id_barang" class="form-control">
-              <option value="">Tanpa Barang</option>
-              <?php foreach ($inventoriOptions as $barang): ?>
-                <option
-                  value="<?= (int)$barang['id'] ?>"
-                  data-harga="<?= (float)$barang['harga_satuan'] ?>"
-                  data-stok="<?= (int)$barang['stok'] ?>"
-                  <?= (int)$data_edit['id_barang'] === (int)$barang['id'] ? 'selected' : '' ?>
-                >
-                  <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
+          <?php if ($isCreateMode): ?>
+            <div class="col-md-12 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="mb-0">Barang (Batch Opsional)</label>
+                <button type="button" id="addBarangItemBtn" class="btn btn-sm btn-outline-primary">
+                  + Tambah Barang
+                </button>
+              </div>
 
-          <div class="col-md-3 mb-3">
-            <label>Jumlah</label>
-            <input type="number" min="0" id="jumlahInput" name="jumlah" class="form-control"
-                   value="<?= (int)$data_edit['jumlah'] ?>">
-          </div>
+              <div id="barangBatchWrapper">
+                <div class="barang-item border rounded p-2 mb-2">
+                  <div class="row">
+                    <div class="col-md-6 mb-2">
+                      <label>Barang</label>
+                      <select name="id_barang[]" class="form-control barang-select">
+                        <option value="">Tanpa Barang</option>
+                        <?php foreach ($inventoriOptions as $barang): ?>
+                          <option
+                            value="<?= (int)$barang['id'] ?>"
+                            data-harga="<?= (float)$barang['harga_satuan'] ?>"
+                            data-stok="<?= (int)$barang['stok'] ?>"
+                          >
+                            <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
+                          </option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
 
-          <div class="col-md-3 mb-3">
-            <label>Harga Satuan</label>
-            <input type="number" min="0" id="hargaInput" name="harga_satuan" class="form-control"
-                   value="<?= (float)$data_edit['harga_satuan'] ?>" readonly>
-          </div>
+                    <div class="col-md-3 mb-2">
+                      <label>Jumlah</label>
+                      <input type="number" min="0" name="jumlah[]" class="form-control jumlah-input" value="0">
+                    </div>
+
+                    <div class="col-md-3 mb-2">
+                      <label>Harga Satuan</label>
+                      <input type="number" min="0" name="harga_satuan[]" class="form-control harga-input" value="0" readonly>
+                    </div>
+
+                    <div class="col-md-12 d-flex justify-content-end">
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-barang-item">Hapus Baris</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <?php else: ?>
+            <div class="col-md-6 mb-3">
+              <label>Barang (Opsional)</label>
+              <select id="barangSelect" name="id_barang" class="form-control">
+                <option value="">Tanpa Barang</option>
+                <?php foreach ($inventoriOptions as $barang): ?>
+                  <option
+                    value="<?= (int)$barang['id'] ?>"
+                    data-harga="<?= (float)$barang['harga_satuan'] ?>"
+                    data-stok="<?= (int)$barang['stok'] ?>"
+                    <?= (int)$data_edit['id_barang'] === (int)$barang['id'] ? 'selected' : '' ?>
+                  >
+                    <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label>Jumlah</label>
+              <input type="number" min="0" id="jumlahInput" name="jumlah" class="form-control"
+                     value="<?= (int)$data_edit['jumlah'] ?>">
+            </div>
+
+            <div class="col-md-3 mb-3">
+              <label>Harga Satuan</label>
+              <input type="number" min="0" id="hargaInput" name="harga_satuan" class="form-control"
+                     value="<?= (float)$data_edit['harga_satuan'] ?>" readonly>
+            </div>
+          <?php endif; ?>
 
           <div class="col-md-12 mb-3">
             <label>Total Harga</label>
@@ -475,35 +524,132 @@ if (vehicleSelect) {
   updateVehicleInfo();
 }
 
-const barangSelect = document.getElementById('barangSelect');
-const jumlahInput = document.getElementById('jumlahInput');
-const hargaInput = document.getElementById('hargaInput');
 const totalHargaPreview = document.getElementById('totalHargaPreview');
 
-function updateHargaDanTotal() {
-  if (!barangSelect) return;
+function bindBatchBarangUI() {
+  const batchWrapper = document.getElementById('barangBatchWrapper');
+  const addBarangItemBtn = document.getElementById('addBarangItemBtn');
 
-  const selected = barangSelect.options[barangSelect.selectedIndex];
-  const harga = selected && selected.value ? Number(selected.dataset.harga || 0) : 0;
-  const jumlah = Number(jumlahInput?.value || 0);
-
-  if (hargaInput) {
-    hargaInput.value = harga;
+  if (!batchWrapper || !addBarangItemBtn) {
+    return false;
   }
 
-  if (totalHargaPreview) {
-    const total = harga * jumlah;
-    totalHargaPreview.value = 'Rp ' + total.toLocaleString('id-ID');
-  }
+  const getHargaFromSelect = (selectEl) => {
+    if (!selectEl || !selectEl.value) return 0;
+    const selected = selectEl.options[selectEl.selectedIndex];
+    return Number(selected?.dataset?.harga || 0);
+  };
+
+  const syncItemTotal = (itemEl) => {
+    if (!itemEl) return 0;
+    const selectEl = itemEl.querySelector('.barang-select');
+    const jumlahEl = itemEl.querySelector('.jumlah-input');
+    const hargaEl = itemEl.querySelector('.harga-input');
+
+    const harga = getHargaFromSelect(selectEl);
+    const jumlah = Number(jumlahEl?.value || 0);
+
+    if (hargaEl) {
+      hargaEl.value = harga;
+    }
+
+    return harga * jumlah;
+  };
+
+  const recalculateBatchTotal = () => {
+    const items = batchWrapper.querySelectorAll('.barang-item');
+    let grandTotal = 0;
+
+    items.forEach((itemEl) => {
+      grandTotal += syncItemTotal(itemEl);
+    });
+
+    if (totalHargaPreview) {
+      totalHargaPreview.value = 'Rp ' + grandTotal.toLocaleString('id-ID');
+    }
+  };
+
+  addBarangItemBtn.addEventListener('click', () => {
+    const firstItem = batchWrapper.querySelector('.barang-item');
+    if (!firstItem) return;
+
+    const clone = firstItem.cloneNode(true);
+    clone.querySelectorAll('select').forEach((el) => {
+      el.selectedIndex = 0;
+    });
+    clone.querySelectorAll('input').forEach((el) => {
+      el.value = '0';
+    });
+    batchWrapper.appendChild(clone);
+    recalculateBatchTotal();
+  });
+
+  batchWrapper.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.remove-barang-item');
+    if (!removeBtn) return;
+
+    const item = removeBtn.closest('.barang-item');
+    const totalItems = batchWrapper.querySelectorAll('.barang-item').length;
+    if (totalItems <= 1) {
+      item.querySelectorAll('select').forEach((el) => {
+        el.selectedIndex = 0;
+      });
+      item.querySelectorAll('input').forEach((el) => {
+        el.value = '0';
+      });
+    } else {
+      item.remove();
+    }
+    recalculateBatchTotal();
+  });
+
+  batchWrapper.addEventListener('change', (e) => {
+    if (e.target.classList.contains('barang-select')) {
+      recalculateBatchTotal();
+    }
+  });
+
+  batchWrapper.addEventListener('input', (e) => {
+    if (e.target.classList.contains('jumlah-input')) {
+      recalculateBatchTotal();
+    }
+  });
+
+  recalculateBatchTotal();
+  return true;
 }
 
-if (barangSelect) {
-  barangSelect.addEventListener('change', updateHargaDanTotal);
+const isBatchMode = bindBatchBarangUI();
+if (!isBatchMode) {
+  const barangSelect = document.getElementById('barangSelect');
+  const jumlahInput = document.getElementById('jumlahInput');
+  const hargaInput = document.getElementById('hargaInput');
+
+  function updateHargaDanTotal() {
+    if (!barangSelect) return;
+
+    const selected = barangSelect.options[barangSelect.selectedIndex];
+    const harga = selected && selected.value ? Number(selected.dataset.harga || 0) : 0;
+    const jumlah = Number(jumlahInput?.value || 0);
+
+    if (hargaInput) {
+      hargaInput.value = harga;
+    }
+
+    if (totalHargaPreview) {
+      const total = harga * jumlah;
+      totalHargaPreview.value = 'Rp ' + total.toLocaleString('id-ID');
+    }
+  }
+
+  if (barangSelect) {
+    barangSelect.addEventListener('change', updateHargaDanTotal);
+  }
+  if (jumlahInput) {
+    jumlahInput.addEventListener('input', updateHargaDanTotal);
+  }
+  updateHargaDanTotal();
 }
-if (jumlahInput) {
-  jumlahInput.addEventListener('input', updateHargaDanTotal);
-}
-updateHargaDanTotal();
 </script>
 
 <?php

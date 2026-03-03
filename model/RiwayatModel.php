@@ -88,10 +88,7 @@ class RiwayatModel {
                 $masa_pakai_km = 0;
             }
 
-            $id_barang    = !empty($data['id_barang']) ? (int)$data['id_barang'] : null;
-            $jumlah       = (int)($data['jumlah'] ?? 0);
-            $harga_satuan = (float)($data['harga_satuan'] ?? 0);
-            $total_harga  = $jumlah * $harga_satuan;
+            $items = $this->normalizeCreateItems($data);
 
             $sql = "
                 INSERT INTO {$this->table}
@@ -102,36 +99,44 @@ class RiwayatModel {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
             $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param(
-                "sssiiisssiidd",
-                $data['vehicle_id'],
-                $data['nopol'],
-                $data['driver_nm'],
-                $total_km,
-                $last_km_service,
-                $masa_pakai_km,
-                $data['status'],
-                $data['kategori'],
-                $data['keterangan'],
-                $id_barang,
-                $jumlah,
-                $harga_satuan,
-                $total_harga
-            );
-            $stmt->execute();
+
+            foreach ($items as $item) {
+                $id_barang = $item['id_barang'];
+                $jumlah = $item['jumlah'];
+                $harga_satuan = $item['harga_satuan'];
+                $total_harga = $jumlah * $harga_satuan;
+
+                $stmt->bind_param(
+                    "sssiiisssiidd",
+                    $data['vehicle_id'],
+                    $data['nopol'],
+                    $data['driver_nm'],
+                    $total_km,
+                    $last_km_service,
+                    $masa_pakai_km,
+                    $data['status'],
+                    $data['kategori'],
+                    $data['keterangan'],
+                    $id_barang,
+                    $jumlah,
+                    $harga_satuan,
+                    $total_harga
+                );
+                $stmt->execute();
+
+                // POTONG STOK JIKA PAKAI SPAREPART
+                if ($id_barang && $jumlah > 0) {
+                    $updateStok = $this->conn->prepare("
+                        UPDATE inventori
+                        SET stok = stok - ?
+                        WHERE id = ?
+                    ");
+                    $updateStok->bind_param("ii", $jumlah, $id_barang);
+                    $updateStok->execute();
+                }
+            }
 
             $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
-
-            // POTONG STOK JIKA PAKAI SPAREPART
-            if ($id_barang && $jumlah > 0) {
-                $updateStok = $this->conn->prepare("
-                    UPDATE inventori 
-                    SET stok = stok - ?
-                    WHERE id = ?
-                ");
-                $updateStok->bind_param("ii", $jumlah, $id_barang);
-                $updateStok->execute();
-            }
 
             $this->conn->commit();
             return true;
@@ -298,5 +303,74 @@ class RiwayatModel {
         $stmt = $this->conn->prepare($sql);
         $stmt->bind_param("iss", $total_km, $today, $vehicle_id);
         $stmt->execute();
+    }
+
+    private function normalizeCreateItems($data) {
+        $items = [];
+
+        $idBarang = $data['id_barang'] ?? null;
+        $jumlah = $data['jumlah'] ?? null;
+        $hargaSatuan = $data['harga_satuan'] ?? null;
+
+        $isBatch =
+            is_array($idBarang) ||
+            is_array($jumlah) ||
+            is_array($hargaSatuan);
+
+        if (!$isBatch) {
+            $singleId = !empty($idBarang) ? (int)$idBarang : null;
+            $singleJumlah = (int)($jumlah ?? 0);
+            $singleHarga = (float)($hargaSatuan ?? 0);
+
+            $items[] = [
+                'id_barang' => $singleId,
+                'jumlah' => $singleJumlah,
+                'harga_satuan' => $singleHarga
+            ];
+            return $items;
+        }
+
+        $idBarangList = is_array($idBarang) ? $idBarang : [];
+        $jumlahList = is_array($jumlah) ? $jumlah : [];
+        $hargaList = is_array($hargaSatuan) ? $hargaSatuan : [];
+        $max = max(count($idBarangList), count($jumlahList), count($hargaList));
+
+        for ($i = 0; $i < $max; $i++) {
+            $rawId = $idBarangList[$i] ?? '';
+            $rawJumlah = $jumlahList[$i] ?? 0;
+            $rawHarga = $hargaList[$i] ?? 0;
+
+            $normalizedId = ($rawId !== '' && $rawId !== null) ? (int)$rawId : null;
+            $normalizedJumlah = (int)$rawJumlah;
+            if ($normalizedJumlah < 0) {
+                $normalizedJumlah = 0;
+            }
+            $normalizedHarga = (float)$rawHarga;
+            if ($normalizedHarga < 0) {
+                $normalizedHarga = 0;
+            }
+
+            // Lewati baris kosong penuh
+            if ($normalizedId === null && $normalizedJumlah === 0 && $normalizedHarga == 0.0) {
+                continue;
+            }
+
+            $items[] = [
+                'id_barang' => $normalizedId,
+                'jumlah' => $normalizedJumlah,
+                'harga_satuan' => $normalizedHarga
+            ];
+        }
+
+        // Tetap simpan 1 baris tanpa barang bila semua baris kosong
+        if (empty($items)) {
+            $items[] = [
+                'id_barang' => null,
+                'jumlah' => 0,
+                'harga_satuan' => 0
+            ];
+        }
+
+        return $items;
     }
 }
