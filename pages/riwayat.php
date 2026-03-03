@@ -24,10 +24,13 @@ if ($action == 'delete') {
     exit;
 }
 
-// server-side search query and optional vehicle filter
+// server-side search query and optional filters
 $search = trim($_GET['search'] ?? '');
 $vehicleFilter = trim($_GET['vehicle_id'] ?? '');
-$data = $model->getAll($search, $vehicleFilter);
+$dateStart = trim($_GET['date_start'] ?? '');
+$dateEnd   = trim($_GET['date_end'] ?? '');
+// pass all filters to model
+$data = $model->getAll($search, $vehicleFilter, $dateStart, $dateEnd);
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 
@@ -71,12 +74,30 @@ include 'core/header.php';
           <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
+      <?php if ($dateStart !== '' || $dateEnd !== ''): ?>
+        <div class="alert alert-info mb-3">
+          Menampilkan riwayat
+          <?php if ($dateStart !== ''): ?>dari <strong><?= htmlspecialchars($dateStart) ?></strong><?php endif; ?>
+          <?php if ($dateEnd !== ''): ?> sampai <strong><?= htmlspecialchars($dateEnd) ?></strong><?php endif; ?>
+          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+        </div>
+      <?php endif; ?>
 
       <form method="GET" class="row mb-3 px-3 justify-content-end">
         <input type="hidden" name="page" value="riwayat">
         <?php if ($vehicleFilter !== ''): ?>
           <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
         <?php endif; ?>
+
+        <div class="col-md-3 mb-2">
+          <input type="date" name="date_start" class="form-control"
+                 value="<?= htmlspecialchars($dateStart) ?>" placeholder="Mulai">
+        </div>
+        <div class="col-md-3 mb-2">
+          <input type="date" name="date_end" class="form-control"
+                 value="<?= htmlspecialchars($dateEnd) ?>" placeholder="Sampai">
+        </div>
+
         <div class="col-md-4">
           <div class="input-group">
             <input type="text" name="search" id="searchInput" class="form-control"
@@ -87,6 +108,21 @@ include 'core/header.php';
           </div>
         </div>
       </form>
+
+      <?php
+      // prepare query string for export button
+      $exportQuery = http_build_query([
+          'search' => $search,
+          'vehicle_id' => $vehicleFilter,
+          'date_start' => $dateStart,
+          'date_end' => $dateEnd
+      ]);
+      ?>
+      <div class="px-3 mb-2">
+        <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success" target="_blank">
+          <i class="fas fa-file-excel"></i> Export Excel
+        </a>
+      </div>
 
       <table id="riwayatTable" class="table align-items-center mb-0">
         <thead>
@@ -210,7 +246,7 @@ $isCreateMode = $action === 'create';
                   data-last-km-service="<?= (int)$vehicle['last_km_service'] ?>"
                   <?= $data_edit['vehicle_id'] == $vehicle['vehicle_id'] ? 'selected' : '' ?>
                 >
-                  <?= htmlspecialchars($vehicle['vehicle_id']) ?> - <?= htmlspecialchars($vehicle['nopol']) ?>
+                  <?= htmlspecialchars($vehicle['nopol']) ?> - <?= htmlspecialchars($vehicle['driver_nm']) ?>
                 </option>
               <?php endforeach; ?>
             </select>
@@ -650,6 +686,32 @@ if (!isBatchMode) {
   }
   updateHargaDanTotal();
 }
+</script>
+
+<!-- Select2 for searchable vehicle dropdown -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // initialize select2 on vehicle select if present
+    var $vehicle = $('#vehicleSelect');
+    if ($vehicle.length) {
+        $vehicle.select2({
+            placeholder: 'Pilih Vehicle',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // when select2 changes we also trigger the native change event
+        $vehicle.on('select2:select select2:clear', function () {
+            // dispatch a native change so existing listeners run
+            var evt = document.createEvent('HTMLEvents');
+            evt.initEvent('change', true, false);
+            $vehicle[0].dispatchEvent(evt);
+        });
+    }
+});
 </script>
 
 <?php

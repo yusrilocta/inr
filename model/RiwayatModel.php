@@ -12,7 +12,7 @@ class RiwayatModel {
     /* ===============================
        GET ALL (with optional server-side search)
     =============================== */
-    public function getAll($search = null, $vehicleId = null) {
+    public function getAll($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null) {
         $sql = "
             SELECT r.*, i.nama AS nama_barang
             FROM {$this->table} r
@@ -39,6 +39,15 @@ class RiwayatModel {
         if ($vehicleId !== null && $vehicleId !== '') {
             $conditions[] = "r.vehicle_id = ?";
             $params[] = $vehicleId;
+        }
+
+        if ($dateStart !== null && $dateStart !== '') {
+            $conditions[] = "r.tanggal >= ?";
+            $params[] = $dateStart;
+        }
+        if ($dateEnd !== null && $dateEnd !== '') {
+            $conditions[] = "r.tanggal <= ?";
+            $params[] = $dateEnd;
         }
 
         if (!empty($conditions)) {

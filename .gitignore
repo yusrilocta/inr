@@ -1,0 +1,23 @@
+# ignore vendor directory created by composer
+/vendor/
+
+# common PHP and editor artifacts
+*.log
+*.cache
+*.env
+.idea/
+.vscode/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# XAMPP / PHP settings
+*.ini
+
+# ignore database backups
+*.sql
+
+# ignore any uploaded files or temp directories
+/uploads/
+/tmp/

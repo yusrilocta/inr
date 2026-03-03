@@ -320,6 +320,10 @@ if ($action === 'edit') {
           <p id="detail_chasis_no">-</p>
         </div>
         <div class="col-md-6 mb-3">
+          <label class="text-muted">No. HP</label>
+          <p id="detail_phone_no">-</p>
+        </div>
+        <div class="col-md-6 mb-3">
           <label class="text-muted">No. KIR</label>
           <p id="detail_kir_no">-</p>
         </div>
@@ -375,6 +379,7 @@ function showDetailModal(rowData) {
   document.getElementById('detail_kir_no').textContent = formatValue(rowData.kir_no);
   document.getElementById('detail_stnk_no').textContent = formatValue(rowData.stnk_no);
   document.getElementById('detail_bpkb_no').textContent = formatValue(rowData.bpkb_no);
+  document.getElementById('detail_phone_no').textContent = formatValue(rowData.phone_no);
   document.getElementById('detail_year_production').textContent = formatValue(rowData.year_production);
   document.getElementById('detail_legal_date').textContent = formatValue(rowData.legal_date);
   document.getElementById('detail_last_service').textContent = formatValue(rowData.last_service);
