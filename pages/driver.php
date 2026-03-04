@@ -106,16 +106,14 @@ include 'core/header.php';
 
             <td class="text-end">
               <a href="index.php?page=driver&action=edit&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-warning btn-sm">
+                 class="btn btn-outline-warning">
                  <i class="fas fa-edit"></i>
-                 Edit
               </a>
 
               <a href="index.php?page=driver&action=delete&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-danger btn-sm"
+                 class="btn btn-outline-danger"
                  onclick="return confirm('Yakin hapus driver?')">
                  <i class="fas fa-trash"></i>
-                 Hapus
               </a>
             </td>
 

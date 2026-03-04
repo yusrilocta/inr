@@ -110,25 +110,25 @@ include 'core/header.php';
               <td><?= !empty($row['last_service']) ? $row['last_service'] : '?' ?></td>
               <td><?= $row['total_km']-$row['last_km_service'] ?></td>
             <td class="text-end">
-              <button class="btn btn-outline-info btn-sm" onclick="showDetailModal(<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>)">
-                Detail
+              <button class="btn btn-outline-info" onclick="showDetailModal(<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>)">
+                <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
 
               <a href="index.php?page=vehicles&action=edit&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-warning btn-sm">
-                 Edit
+                 class="btn btn-outline-warning">
+                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
 
               <a href="index.php?page=vehicles&action=delete&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-danger btn-sm"
+                 class="btn btn-outline-danger"
                  onclick="return confirm('Yakin hapus vehicle?')">
-                 Hapus
+                 <i class="fa-solid fa-delete-left"></i>
               </a>
 
               <!-- diagnosa tombol menuju riwayat terfilter -->
               <a href="index.php?page=riwayat&vehicle_id=<?= urlencode($row['vehicle_id']) ?>" 
-                 class="btn btn-outline-secondary btn-sm">
-                 Diagnosa
+                 class="btn btn-outline-secondary">
+                 <i class="fa-solid fa-magnifying-glass-arrow-right"></i>
               </a>
             </td>
 

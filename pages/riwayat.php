@@ -29,6 +29,13 @@ $search = trim($_GET['search'] ?? '');
 $vehicleFilter = trim($_GET['vehicle_id'] ?? '');
 $dateStart = trim($_GET['date_start'] ?? '');
 $dateEnd   = trim($_GET['date_end'] ?? '');
+$exportQuery = http_build_query([
+    'search' => $search,
+    'vehicle_id' => $vehicleFilter,
+    'date_start' => $dateStart,
+    'date_end' => $dateEnd
+]);
+$canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
 // pass all filters to model
 $data = $model->getAll($search, $vehicleFilter, $dateStart, $dateEnd);
 $vehicleOptions = $model->getVehicleOptions();
@@ -83,46 +90,35 @@ include 'core/header.php';
         </div>
       <?php endif; ?>
 
-      <form method="GET" class="row mb-3 px-3 justify-content-end">
-        <input type="hidden" name="page" value="riwayat">
-        <?php if ($vehicleFilter !== ''): ?>
-          <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
-        <?php endif; ?>
+      <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
+        <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
+          <input type="hidden" name="page" value="riwayat">
+          <?php if ($vehicleFilter !== ''): ?>
+            <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
+          <?php endif; ?>
 
-        <div class="col-md-3 mb-2">
           <input type="date" name="date_start" class="form-control"
-                 value="<?= htmlspecialchars($dateStart) ?>" placeholder="Mulai">
-        </div>
-        <div class="col-md-3 mb-2">
+                 value="<?= htmlspecialchars($dateStart) ?>" placeholder="Mulai" style="min-width: 170px;">
           <input type="date" name="date_end" class="form-control"
-                 value="<?= htmlspecialchars($dateEnd) ?>" placeholder="Sampai">
-        </div>
+                 value="<?= htmlspecialchars($dateEnd) ?>" placeholder="Sampai" style="min-width: 170px;">
+          <input type="text" name="search" id="searchInput" class="form-control"
+                 placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>" style="min-width: 260px;">
+          <button class="btn btn-outline-primary" type="submit">
+            <i class="fas fa-search"></i>
+          </button>
+        </form>
 
-        <div class="col-md-4">
-          <div class="input-group">
-            <input type="text" name="search" id="searchInput" class="form-control"
-                   placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>">
-            <button class="btn btn-outline-primary" type="submit">
-              <i class="fas fa-search"></i>
-            </button>
-          </div>
-        </div>
-      </form>
-
-      <?php
-      // prepare query string for export button
-      $exportQuery = http_build_query([
-          'search' => $search,
-          'vehicle_id' => $vehicleFilter,
-          'date_start' => $dateStart,
-          'date_end' => $dateEnd
-      ]);
-      ?>
-      <div class="px-3 mb-2">
         <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success" target="_blank">
           <i class="fas fa-file-excel"></i> Export Excel
         </a>
+
+        <?php if ($canPrintInvoice): ?>
+          <a href="index.php?page=riwayat_invoice&<?= $exportQuery ?>" class="btn btn-sm btn-outline-danger" target="_blank">
+            <i class="fas fa-file-pdf"></i> Cetak PDF
+          </a>
+        <?php endif; ?>
       </div>
+
 
       <table id="riwayatTable" class="table align-items-center mb-0">
         <thead>
@@ -164,19 +160,19 @@ include 'core/header.php';
             <td>Rp <?= number_format((float)$row['total_harga'], 0, ',', '.') ?></td>
 
             <td class="text-end">
-              <button class="btn btn-outline-info btn-sm" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
-                Detail
+              <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
+                <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
 
               <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>"
-                 class="btn btn-outline-warning btn-sm">
-                 Edit
+                 class="btn btn-outline-warning">
+                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
 
               <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>"
-                 class="btn btn-outline-danger btn-sm"
+                 class="btn btn-outline-danger"
                  onclick="return confirm('Yakin hapus riwayat service?')">
-                 Hapus
+                 <i class="fa-solid fa-delete-left"></i>
               </a>
             </td>
           </tr>
@@ -191,7 +187,6 @@ include 'core/header.php';
 
     </div>
   </div>
-</div>
 </div>
 
 <?php

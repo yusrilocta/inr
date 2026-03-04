@@ -107,14 +107,14 @@ include 'core/header.php';
 
             <td class="text-end">
               <a href="index.php?page=inventory&action=edit&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-warning btn-sm">
-                 Edit
+                 class="btn btn-outline-warning">
+                 <i class="fas fa-edit"></i>
               </a>
 
               <a href="index.php?page=inventory&action=delete&id=<?= $row['id'] ?>" 
-                 class="btn btn-outline-danger btn-sm"
+                 class="btn btn-outline-danger"
                  onclick="return confirm('Yakin hapus barang?')">
-                 Hapus
+                 <i class="fas fa-trash"></i>
               </a>
             </td>
 
