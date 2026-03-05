@@ -46,6 +46,21 @@ include 'core/header.php';
 .vehicle-overlay-card {
   width: min(800px, 100%);
 }
+
+#vehicleTable thead th.sortable-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+#vehicleTable thead th.sortable-header .sort-indicator {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.55;
+}
+
+#vehicleTable thead th.sortable-header.active-sort {
+  color: #344767 !important;
+}
 </style>
 
 <div class="container-fluid py-4">
@@ -76,14 +91,14 @@ include 'core/header.php';
         <thead>
           <tr>
             <!-- <th class="text-xs text-uppercase text-secondary font-weight-bolder">id Kend</th> -->
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">No pol</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Brand</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Model</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Type</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Driver</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Total KM</th>
-             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Service Terakhir</th>            
-             <th class="text-xs text-uppercase text-secondary font-weight-bolder">KM Service</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">No pol <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Brand <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Model <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Type <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Driver <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="number">Total KM <span class="sort-indicator">&lt;&gt;</span></th>
+             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="date">Service Terakhir <span class="sort-indicator">&lt;&gt;</span></th>            
+             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="number">KM Service <span class="sort-indicator">&lt;&gt;</span></th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
         </thead>
@@ -404,10 +419,65 @@ document.getElementById('detailModalOverlay')?.addEventListener('click', functio
 <script>
 let rowsPerPage = 10;
 let currentPage = 1;
+let activeSortIndex = null;
+let activeSortDirection = 'asc';
 
 const table = document.getElementById("vehicleTable");
 const tbody = table.querySelector("tbody");
-const rows = Array.from(tbody.querySelectorAll("tr"));
+let rows = Array.from(tbody.querySelectorAll("tr"));
+const sortableHeaders = Array.from(table.querySelectorAll("thead th.sortable-header"));
+
+function getCellSortValue(row, colIndex, sortType) {
+    const cellText = (row.cells[colIndex]?.innerText || "").trim();
+
+    if (sortType === "number") {
+        const cleaned = cellText.replace(/[^0-9.-]/g, "");
+        const numeric = parseFloat(cleaned);
+        return Number.isNaN(numeric) ? Number.NEGATIVE_INFINITY : numeric;
+    }
+
+    if (sortType === "date") {
+        const time = Date.parse(cellText);
+        return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+    }
+
+    return cellText.toLowerCase();
+}
+
+function sortRowsByColumn(colIndex, sortType) {
+    if (activeSortIndex === colIndex) {
+        activeSortDirection = activeSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        activeSortIndex = colIndex;
+        activeSortDirection = "asc";
+    }
+
+    rows.sort((rowA, rowB) => {
+        const valA = getCellSortValue(rowA, colIndex, sortType);
+        const valB = getCellSortValue(rowB, colIndex, sortType);
+
+        if (valA < valB) return activeSortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return activeSortDirection === "asc" ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+    updateSortIndicators();
+    currentPage = 1;
+    displayTable();
+}
+
+function updateSortIndicators() {
+    sortableHeaders.forEach((header, index) => {
+        const indicator = header.querySelector(".sort-indicator");
+        const isActive = index === activeSortIndex;
+
+        header.classList.toggle("active-sort", isActive);
+        if (!indicator) return;
+
+        indicator.textContent = !isActive ? "<>" : (activeSortDirection === "asc" ? "^" : "v");
+    });
+}
 
 function displayTable() {
 
@@ -473,6 +543,13 @@ function renderInfo(totalData) {
 document.getElementById("searchInput").addEventListener("keyup", function(){
     currentPage = 1;
     displayTable();
+});
+
+sortableHeaders.forEach((header, index) => {
+    header.addEventListener("click", function() {
+        const sortType = header.getAttribute("data-sort") || "text";
+        sortRowsByColumn(index, sortType);
+    });
 });
 
 displayTable();

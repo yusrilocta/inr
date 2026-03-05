@@ -2,15 +2,7 @@
 set_time_limit(0); // Unlimited execution time
 ini_set('default_socket_timeout', 300);
 
-$host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "inr";
-
-$conn = new mysqli($host, $user, $pass, $dbname);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+require_once __DIR__ . '/db.php';
 
 $token = "2C46FA731D55460FBDFE4FF8F0F98DD5";
 $url   = "https://vtsapi.easygo-gps.co.id/api/report/total_km";

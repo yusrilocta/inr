@@ -30,7 +30,7 @@ include 'core/header.php';
               <div class="row">
                 <div class="col-8 text-start">
                   <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="ni ni-circle-08 text-dark text-gradient text-lg opacity-10" aria-hidden="true"></i>
+                    <i class="fa-regular fa-id-card" style="color: rgb(0, 0, 0);"></i>
                   </div>
                   <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['drivers']) ?></h5>
                   <span class="text-white text-sm">Total Driver</span>
@@ -49,8 +49,8 @@ include 'core/header.php';
             <div class="card-body p-3 position-relative">
               <div class="row">
                 <div class="col-8 text-start">
-                  <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="ni ni-delivery-fast text-dark text-gradient text-lg opacity-10" aria-hidden="true"></i>
+                  <div class="bg-white shadow text-center icon icon-shape border-radius-2xl">
+                    <i class="fa-solid fa-truck-moving" style="color: rgb(0, 0, 0);"></i>
                   </div>
                   <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['vehicles']) ?></h5>
                   <span class="text-white text-sm">Total Vehicle</span>
@@ -72,7 +72,7 @@ include 'core/header.php';
               <div class="row">
                 <div class="col-8 text-start">
                   <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="ni ni-box-2 text-dark text-gradient text-lg opacity-10" aria-hidden="true"></i>
+                    <i class="fa-solid fa-boxes-stacked" style="color: rgb(0, 0, 0);"></i>
                   </div>
                   <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['inventory']) ?></h5>
                   <span class="text-white text-sm">Total Inventory</span>
@@ -92,7 +92,7 @@ include 'core/header.php';
               <div class="row">
                 <div class="col-8 text-start">
                   <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="ni ni-single-copy-04 text-dark text-gradient text-lg opacity-10" aria-hidden="true"></i>
+                    <i class="fa-solid fa-cart-flatbed" style="color: rgb(0, 0, 0);"></i>
                   </div>
                   <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['riwayat']) ?></h5>
                   <span class="text-white text-sm">Total Riwayat</span>
