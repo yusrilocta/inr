@@ -4,6 +4,7 @@ class RiwayatModel {
 
     private $conn;
     private $table = "riwayat_service";
+    private $itemTable = "item_list";
 
     public function __construct($db) {
         $this->conn = $db;
@@ -14,9 +15,19 @@ class RiwayatModel {
     =============================== */
     public function getAll($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null) {
         $sql = "
-            SELECT r.*, i.nama AS nama_barang
+            SELECT
+                r.*,
+                il.id AS item_id,
+                il.id_barang,
+                il.jumlah,
+                il.harga_satuan,
+                il.total_harga,
+                il.mekanik_id,
+                il.tools,
+                i.nama AS nama_barang
             FROM {$this->table} r
-            LEFT JOIN inventori i ON r.id_barang = i.id
+            LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
+            LEFT JOIN inventori i ON il.id_barang = i.id
         ";
 
         $conditions = [];
@@ -54,7 +65,67 @@ class RiwayatModel {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
 
-        $sql .= " ORDER BY r.id DESC";
+        $sql .= " ORDER BY r.id DESC, il.id ASC";
+        $stmt = $this->conn->prepare($sql);
+        if (!empty($params)) {
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function getParentList($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null) {
+        $sql = "
+            SELECT
+                r.*,
+                COALESCE(SUM(il.jumlah), 0) AS total_qty,
+                COALESCE(SUM(il.total_harga), 0) AS total_harga,
+                GROUP_CONCAT(
+                    CONCAT(COALESCE(i.nama, 'Tanpa Barang'), ' x', COALESCE(il.jumlah, 0))
+                    ORDER BY il.id ASC SEPARATOR ', '
+                ) AS item_summary
+            FROM {$this->table} r
+            LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
+            LEFT JOIN inventori i ON il.id_barang = i.id
+        ";
+
+        $conditions = [];
+        $params = [];
+
+        if ($search !== null && $search !== '') {
+            $conditions[] = "(
+                r.vehicle_id LIKE ? OR
+                r.nopol LIKE ? OR
+                r.driver_nm LIKE ? OR
+                r.status LIKE ? OR
+                r.kategori LIKE ? OR
+                i.nama LIKE ?
+            )";
+            $like = "%{$search}%";
+            $params = array_merge($params, [$like, $like, $like, $like, $like, $like]);
+        }
+
+        if ($vehicleId !== null && $vehicleId !== '') {
+            $conditions[] = "r.vehicle_id = ?";
+            $params[] = $vehicleId;
+        }
+
+        if ($dateStart !== null && $dateStart !== '') {
+            $conditions[] = "r.tanggal >= ?";
+            $params[] = $dateStart;
+        }
+        if ($dateEnd !== null && $dateEnd !== '') {
+            $conditions[] = "r.tanggal <= ?";
+            $params[] = $dateEnd;
+        }
+
+        if (!empty($conditions)) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        $sql .= " GROUP BY r.id ORDER BY r.id DESC";
         $stmt = $this->conn->prepare($sql);
         if (!empty($params)) {
             $types = str_repeat('s', count($params));
@@ -70,16 +141,26 @@ class RiwayatModel {
     =============================== */
     public function getById($id) {
         $stmt = $this->conn->prepare("
-            SELECT r.*, i.nama AS nama_barang
+            SELECT
+                r.*,
+                COALESCE(SUM(il.jumlah), 0) AS total_qty,
+                COALESCE(SUM(il.total_harga), 0) AS total_harga
             FROM {$this->table} r
-            LEFT JOIN inventori i ON r.id_barang = i.id
+            LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
             WHERE r.id = ?
+            GROUP BY r.id
             LIMIT 1
         ");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();
-        return $result->fetch_assoc();
+        $row = $result->fetch_assoc();
+        if (!$row) {
+            return null;
+        }
+
+        $row['items'] = $this->getItemsByRiwayatId((int)$id);
+        return $row;
     }
 
     /* ===============================
@@ -97,53 +178,31 @@ class RiwayatModel {
                 $masa_pakai_km = 0;
             }
 
-            $items = $this->normalizeCreateItems($data);
-
             $sql = "
                 INSERT INTO {$this->table}
                 (vehicle_id, nopol, driver_nm,
                 total_km, last_km_service, masa_pakai_km,
-                 status, kategori, keterangan,
-                 id_barang, jumlah, harga_satuan, total_harga)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, kategori, keterangan)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
             $stmt = $this->conn->prepare($sql);
+            $stmt->bind_param(
+                "sssiiisss",
+                $data['vehicle_id'],
+                $data['nopol'],
+                $data['driver_nm'],
+                $total_km,
+                $last_km_service,
+                $masa_pakai_km,
+                $data['status'],
+                $data['kategori'],
+                $data['keterangan']
+            );
+            $stmt->execute();
 
-            foreach ($items as $item) {
-                $id_barang = $item['id_barang'];
-                $jumlah = $item['jumlah'];
-                $harga_satuan = $item['harga_satuan'];
-                $total_harga = $jumlah * $harga_satuan;
-
-                $stmt->bind_param(
-                    "sssiiisssiidd",
-                    $data['vehicle_id'],
-                    $data['nopol'],
-                    $data['driver_nm'],
-                    $total_km,
-                    $last_km_service,
-                    $masa_pakai_km,
-                    $data['status'],
-                    $data['kategori'],
-                    $data['keterangan'],
-                    $id_barang,
-                    $jumlah,
-                    $harga_satuan,
-                    $total_harga
-                );
-                $stmt->execute();
-
-                // POTONG STOK JIKA PAKAI SPAREPART
-                if ($id_barang && $jumlah > 0) {
-                    $updateStok = $this->conn->prepare("
-                        UPDATE inventori
-                        SET stok = stok - ?
-                        WHERE id = ?
-                    ");
-                    $updateStok->bind_param("ii", $jumlah, $id_barang);
-                    $updateStok->execute();
-                }
-            }
+            $riwayatId = (int)$this->conn->insert_id;
+            $items = $this->normalizeItems($data);
+            $this->insertItems($riwayatId, $items);
 
             $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
 
@@ -171,6 +230,7 @@ class RiwayatModel {
                 return false;
             }
 
+            $oldItems = $this->getItemsByRiwayatId($id);
             $total_km         = (int)$data['total_km'];
             $last_km_service  = (int)$data['last_km_service'];
             $masa_pakai_km    = $total_km - $last_km_service;
@@ -178,23 +238,7 @@ class RiwayatModel {
                 $masa_pakai_km = 0;
             }
 
-            $id_barang    = !empty($data['id_barang']) ? (int)$data['id_barang'] : null;
-            $jumlah       = (int)($data['jumlah'] ?? 0);
-            $harga_satuan = (float)($data['harga_satuan'] ?? 0);
-            $total_harga  = $jumlah * $harga_satuan;
-
-            // Kembalikan stok lama sebelum update data
-            if (!empty($old['id_barang']) && (int)$old['jumlah'] > 0) {
-                $rollbackStok = $this->conn->prepare("
-                    UPDATE inventori
-                    SET stok = stok + ?
-                    WHERE id = ?
-                ");
-                $oldJumlah = (int)$old['jumlah'];
-                $oldBarang = (int)$old['id_barang'];
-                $rollbackStok->bind_param("ii", $oldJumlah, $oldBarang);
-                $rollbackStok->execute();
-            }
+            $this->rollbackInventoryStock($oldItems);
 
             $sql = "
                 UPDATE {$this->table}
@@ -206,16 +250,12 @@ class RiwayatModel {
                     masa_pakai_km = ?,
                     status = ?,
                     kategori = ?,
-                    keterangan = ?,
-                    id_barang = ?,
-                    jumlah = ?,
-                    harga_satuan = ?,
-                    total_harga = ?
+                    keterangan = ?
                 WHERE id = ?
             ";
             $stmt = $this->conn->prepare($sql);
             $stmt->bind_param(
-                "sssiiisssiiddi",
+                "sssiiisssi",
                 $data['vehicle_id'],
                 $data['nopol'],
                 $data['driver_nm'],
@@ -225,26 +265,18 @@ class RiwayatModel {
                 $data['status'],
                 $data['kategori'],
                 $data['keterangan'],
-                $id_barang,
-                $jumlah,
-                $harga_satuan,
-                $total_harga,
                 $id
             );
             $stmt->execute();
 
-            $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
+            $deleteItems = $this->conn->prepare("DELETE FROM {$this->itemTable} WHERE riwayat_id = ?");
+            $deleteItems->bind_param("i", $id);
+            $deleteItems->execute();
 
-            // Potong stok baru setelah update data
-            if ($id_barang && $jumlah > 0) {
-                $updateStok = $this->conn->prepare("
-                    UPDATE inventori
-                    SET stok = stok - ?
-                    WHERE id = ?
-                ");
-                $updateStok->bind_param("ii", $jumlah, $id_barang);
-                $updateStok->execute();
-            }
+            $newItems = $this->normalizeItems($data);
+            $this->insertItems($id, $newItems);
+
+            $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
 
             $this->conn->commit();
             return true;
@@ -259,9 +291,22 @@ class RiwayatModel {
     =============================== */
     public function delete($id) {
         $id = (int)$id;
-        $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        return $stmt->execute();
+        try {
+            $this->conn->begin_transaction();
+
+            $oldItems = $this->getItemsByRiwayatId($id);
+            $this->rollbackInventoryStock($oldItems);
+
+            $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+
+            $this->conn->commit();
+            return true;
+        } catch (Throwable $e) {
+            $this->conn->rollback();
+            return false;
+        }
     }
 
     /* ===============================
@@ -269,9 +314,10 @@ class RiwayatModel {
     =============================== */
     public function getTotalBiayaByVehicle($vehicle_id) {
         $stmt = $this->conn->prepare("
-            SELECT SUM(total_harga) as total_biaya
-            FROM {$this->table}
-            WHERE vehicle_id = ?
+            SELECT COALESCE(SUM(il.total_harga), 0) as total_biaya
+            FROM {$this->table} r
+            LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
+            WHERE r.vehicle_id = ?
         ");
         $stmt->bind_param("s", $vehicle_id);
         $stmt->execute();
@@ -301,6 +347,17 @@ class RiwayatModel {
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     }
 
+    public function getMekanikOptions() {
+        $check = $this->conn->query("SHOW TABLES LIKE 'mekanik'");
+        if (!$check || (int)$check->num_rows === 0) {
+            return [];
+        }
+
+        $sql = "SELECT id, nama FROM mekanik ORDER BY nama ASC";
+        $result = $this->conn->query($sql);
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
     /* ===============================
        SYNC SERVICE INFO KE VEHICLE
     =============================== */
@@ -314,40 +371,118 @@ class RiwayatModel {
         $stmt->execute();
     }
 
-    private function normalizeCreateItems($data) {
+    private function getItemsByRiwayatId($riwayatId) {
+        $stmt = $this->conn->prepare("
+            SELECT il.*, i.nama AS nama_barang
+            FROM {$this->itemTable} il
+            LEFT JOIN inventori i ON i.id = il.id_barang
+            WHERE il.riwayat_id = ?
+            ORDER BY il.id ASC
+        ");
+        $stmt->bind_param("i", $riwayatId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    private function rollbackInventoryStock(array $items) {
+        foreach ($items as $item) {
+            $idBarang = isset($item['id_barang']) ? (int)$item['id_barang'] : 0;
+            $jumlah = isset($item['jumlah']) ? (int)$item['jumlah'] : 0;
+            if ($idBarang <= 0 || $jumlah <= 0) {
+                continue;
+            }
+
+            $rollbackStok = $this->conn->prepare("
+                UPDATE inventori
+                SET stok = stok + ?
+                WHERE id = ?
+            ");
+            $rollbackStok->bind_param("ii", $jumlah, $idBarang);
+            $rollbackStok->execute();
+        }
+    }
+
+    private function insertItems($riwayatId, array $items) {
+        if (empty($items)) {
+            return;
+        }
+
+        $insertItem = $this->conn->prepare("
+            INSERT INTO {$this->itemTable}
+            (riwayat_id, id_barang, jumlah, harga_satuan, total_harga, mekanik_id, tools)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        foreach ($items as $item) {
+            $idBarang = $item['id_barang'];
+            $jumlah = $item['jumlah'];
+            $hargaSatuan = $item['harga_satuan'];
+            $totalHarga = $jumlah * $hargaSatuan;
+            $mekanikId = $item['mekanik_id'];
+            $tools = $item['tools'];
+
+            $insertItem->bind_param(
+                "iiiddis",
+                $riwayatId,
+                $idBarang,
+                $jumlah,
+                $hargaSatuan,
+                $totalHarga,
+                $mekanikId,
+                $tools
+            );
+            $insertItem->execute();
+
+            if (!empty($idBarang) && $jumlah > 0) {
+                $updateStok = $this->conn->prepare("
+                    UPDATE inventori
+                    SET stok = stok - ?
+                    WHERE id = ?
+                ");
+                $updateStok->bind_param("ii", $jumlah, $idBarang);
+                $updateStok->execute();
+            }
+        }
+    }
+
+    private function normalizeItems($data) {
         $items = [];
 
-        $idBarang = $data['id_barang'] ?? null;
-        $jumlah = $data['jumlah'] ?? null;
-        $hargaSatuan = $data['harga_satuan'] ?? null;
+        $idBarang = $data['id_barang'] ?? [];
+        $jumlah = $data['jumlah'] ?? [];
+        $hargaSatuan = $data['harga_satuan'] ?? [];
+        $mekanikId = $data['mekanik_id'] ?? [];
+        $tools = $data['tools'] ?? [];
 
         $isBatch =
             is_array($idBarang) ||
             is_array($jumlah) ||
-            is_array($hargaSatuan);
+            is_array($hargaSatuan) ||
+            is_array($mekanikId) ||
+            is_array($tools);
 
         if (!$isBatch) {
-            $singleId = !empty($idBarang) ? (int)$idBarang : null;
-            $singleJumlah = (int)($jumlah ?? 0);
-            $singleHarga = (float)($hargaSatuan ?? 0);
-
-            $items[] = [
-                'id_barang' => $singleId,
-                'jumlah' => $singleJumlah,
-                'harga_satuan' => $singleHarga
-            ];
-            return $items;
+            $idBarang = [$idBarang];
+            $jumlah = [$jumlah];
+            $hargaSatuan = [$hargaSatuan];
+            $mekanikId = [$mekanikId];
+            $tools = [$tools];
         }
 
         $idBarangList = is_array($idBarang) ? $idBarang : [];
         $jumlahList = is_array($jumlah) ? $jumlah : [];
         $hargaList = is_array($hargaSatuan) ? $hargaSatuan : [];
-        $max = max(count($idBarangList), count($jumlahList), count($hargaList));
+        $mekanikList = is_array($mekanikId) ? $mekanikId : [];
+        $toolsList = is_array($tools) ? $tools : [];
+        $max = max(count($idBarangList), count($jumlahList), count($hargaList), count($mekanikList), count($toolsList));
 
         for ($i = 0; $i < $max; $i++) {
             $rawId = $idBarangList[$i] ?? '';
             $rawJumlah = $jumlahList[$i] ?? 0;
             $rawHarga = $hargaList[$i] ?? 0;
+            $rawMekanik = $mekanikList[$i] ?? '';
+            $rawTools = strtolower(trim((string)($toolsList[$i] ?? 'tidak')));
 
             $normalizedId = ($rawId !== '' && $rawId !== null) ? (int)$rawId : null;
             $normalizedJumlah = (int)$rawJumlah;
@@ -358,25 +493,25 @@ class RiwayatModel {
             if ($normalizedHarga < 0) {
                 $normalizedHarga = 0;
             }
+            $normalizedMekanik = ($rawMekanik !== '' && $rawMekanik !== null) ? (int)$rawMekanik : null;
+            $normalizedTools = in_array($rawTools, ['ya', 'tidak'], true) ? $rawTools : 'tidak';
 
-            // Lewati baris kosong penuh
-            if ($normalizedId === null && $normalizedJumlah === 0 && $normalizedHarga == 0.0) {
+            if (
+                $normalizedId === null &&
+                $normalizedJumlah === 0 &&
+                $normalizedHarga == 0.0 &&
+                $normalizedMekanik === null &&
+                $normalizedTools === 'tidak'
+            ) {
                 continue;
             }
 
             $items[] = [
                 'id_barang' => $normalizedId,
                 'jumlah' => $normalizedJumlah,
-                'harga_satuan' => $normalizedHarga
-            ];
-        }
-
-        // Tetap simpan 1 baris tanpa barang bila semua baris kosong
-        if (empty($items)) {
-            $items[] = [
-                'id_barang' => null,
-                'jumlah' => 0,
-                'harga_satuan' => 0
+                'harga_satuan' => $normalizedHarga,
+                'mekanik_id' => $normalizedMekanik,
+                'tools' => $normalizedTools
             ];
         }
 

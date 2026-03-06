@@ -3,43 +3,42 @@ require_once __DIR__ . '/../db/db.php';
 require_once __DIR__ . '/../model/RiwayatModel.php';
 
 $model = new RiwayatModel($conn);
-
 $action = $_GET['action'] ?? null;
 
-if ($action == 'create' && $_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->create($_POST);
     header("Location: index.php?page=riwayat");
     exit;
 }
 
-if ($action == 'update' && $_SERVER['REQUEST_METHOD'] == 'POST') {
-    $model->update($_GET['id'], $_POST);
+if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $model->update($_GET['id'] ?? 0, $_POST);
     header("Location: index.php?page=riwayat");
     exit;
 }
 
-if ($action == 'delete') {
-    $model->delete($_GET['id']);
+if ($action === 'delete') {
+    $model->delete($_GET['id'] ?? 0);
     header("Location: index.php?page=riwayat");
     exit;
 }
 
-// server-side search query and optional filters
 $search = trim($_GET['search'] ?? '');
 $vehicleFilter = trim($_GET['vehicle_id'] ?? '');
 $dateStart = trim($_GET['date_start'] ?? '');
-$dateEnd   = trim($_GET['date_end'] ?? '');
+$dateEnd = trim($_GET['date_end'] ?? '');
 $exportQuery = http_build_query([
     'search' => $search,
     'vehicle_id' => $vehicleFilter,
     'date_start' => $dateStart,
     'date_end' => $dateEnd
 ]);
+
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
-// pass all filters to model
-$data = $model->getAll($search, $vehicleFilter, $dateStart, $dateEnd);
+$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd);
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
+$mekanikOptions = $model->getMekanikOptions();
 
 include 'core/header.php';
 ?>
@@ -57,7 +56,7 @@ include 'core/header.php';
 }
 
 .riwayat-overlay-card {
-  width: min(950px, 100%);
+  width: min(1050px, 100%);
 }
 </style>
 
@@ -66,10 +65,8 @@ include 'core/header.php';
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Data Riwayat Service</h5>
-
-    <a href="index.php?page=riwayat&action=create"
-       class="btn bg-gradient-success btn-sm">
-       <i class="fas fa-plus me-1"></i> Tambah Riwayat
+    <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
+      <i class="fas fa-plus me-1"></i> Tambah Riwayat
     </a>
   </div>
 
@@ -81,6 +78,7 @@ include 'core/header.php';
           <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
+
       <?php if ($dateStart !== '' || $dateEnd !== ''): ?>
         <div class="alert alert-info mb-3">
           Menampilkan riwayat
@@ -96,16 +94,10 @@ include 'core/header.php';
           <?php if ($vehicleFilter !== ''): ?>
             <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
           <?php endif; ?>
-
-          <input type="date" name="date_start" class="form-control"
-                 value="<?= htmlspecialchars($dateStart) ?>" placeholder="Mulai" style="min-width: 170px;">
-          <input type="date" name="date_end" class="form-control"
-                 value="<?= htmlspecialchars($dateEnd) ?>" placeholder="Sampai" style="min-width: 170px;">
-          <input type="text" name="search" id="searchInput" class="form-control"
-                 placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>" style="min-width: 260px;">
-          <button class="btn btn-outline-primary" type="submit">
-            <i class="fas fa-search"></i>
-          </button>
+          <input type="date" name="date_start" class="form-control" value="<?= htmlspecialchars($dateStart) ?>" style="min-width:170px;">
+          <input type="date" name="date_end" class="form-control" value="<?= htmlspecialchars($dateEnd) ?>" style="min-width:170px;">
+          <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>" style="min-width:260px;">
+          <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
         </form>
 
         <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success" target="_blank">
@@ -119,7 +111,6 @@ include 'core/header.php';
         <?php endif; ?>
       </div>
 
-
       <table id="riwayatTable" class="table align-items-center mb-0">
         <thead>
           <tr>
@@ -131,12 +122,12 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Status</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Kategori</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Masa Pakai</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Barang</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Item Service</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Qty</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Total</th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
         </thead>
-
         <tbody>
         <?php foreach ($data as $row): ?>
           <tr>
@@ -156,23 +147,18 @@ include 'core/header.php';
               </span>
             </td>
             <td><?= (int)$row['masa_pakai_km'] ?> KM</td>
-            <td><?= !empty($row['nama_barang']) ? htmlspecialchars($row['nama_barang']) : '-' ?></td>
-            <td>Rp <?= number_format((float)$row['total_harga'], 0, ',', '.') ?></td>
-
+            <td><?= !empty($row['item_summary']) ? htmlspecialchars($row['item_summary']) : '-' ?></td>
+            <td><?= (int)($row['total_qty'] ?? 0) ?></td>
+            <td>Rp <?= number_format((float)($row['total_harga'] ?? 0), 0, ',', '.') ?></td>
             <td class="text-end">
               <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
                 <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
-
-              <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>"
-                 class="btn btn-outline-warning">
-                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
+              <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
+                <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
-
-              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>"
-                 class="btn btn-outline-danger"
-                 onclick="return confirm('Yakin hapus riwayat service?')">
-                 <i class="fa-solid fa-delete-left"></i>
+              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
+                <i class="fa-solid fa-delete-left"></i>
               </a>
             </td>
           </tr>
@@ -184,49 +170,55 @@ include 'core/header.php';
         <div id="dataInfo" class="text-sm text-secondary"></div>
         <div id="pagination" class="btn-group"></div>
       </div>
-
     </div>
   </div>
 </div>
 
 <?php
 if ($action === 'create' || $action === 'edit'):
+    $dataEdit = [
+        'vehicle_id' => '',
+        'nopol' => '',
+        'driver_nm' => '',
+        'total_km' => '',
+        'last_km_service' => '',
+        'status' => 'claim',
+        'kategori' => 'normal',
+        'keterangan' => '',
+        'items' => []
+    ];
 
-$data_edit = [
-    'vehicle_id' => '',
-    'nopol' => '',
-    'driver_nm' => '',
-    'total_km' => '',
-    'last_km_service' => '',
-    'status' => 'claim',
-    'kategori' => 'normal',
-    'keterangan' => '',
-    'id_barang' => '',
-    'jumlah' => 0,
-    'harga_satuan' => 0
-];
-
-if ($action === 'edit') {
-    $found = $model->getById($_GET['id']);
-    if ($found) {
-        $data_edit = $found;
+    if ($action === 'edit') {
+        $found = $model->getById($_GET['id'] ?? 0);
+        if ($found) {
+            $dataEdit = $found;
+        }
     }
-}
 
-$isCreateMode = $action === 'create';
+    if (empty($dataEdit['items'])) {
+        $dataEdit['items'][] = [
+            'id_barang' => '',
+            'jumlah' => 0,
+            'harga_satuan' => 0,
+            'mekanik_id' => '',
+            'tools' => 'tidak'
+        ];
+    }
+
+    $existingTotal = 0;
+    foreach ($dataEdit['items'] as $item) {
+        $existingTotal += ((int)($item['jumlah'] ?? 0)) * ((float)($item['harga_satuan'] ?? 0));
+    }
 ?>
-
 <div class="riwayat-overlay">
   <div class="card shadow-lg border-0 riwayat-overlay-card">
-
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5><?= $action === 'create' ? 'Tambah Riwayat Service' : 'Edit Riwayat Service' ?></h5>
       <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary">Tutup</a>
     </div>
 
     <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
-      <form method="POST" action="index.php?page=riwayat&action=<?= $action === 'edit' ? 'update&id=' . (int)$_GET['id'] : 'create' ?>">
-
+      <form method="POST" action="index.php?page=riwayat&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
         <div class="row">
           <div class="col-md-6 mb-3">
             <label>Vehicle</label>
@@ -239,7 +231,7 @@ $isCreateMode = $action === 'create';
                   data-driver="<?= htmlspecialchars($vehicle['driver_nm']) ?>"
                   data-total-km="<?= (int)$vehicle['total_km'] ?>"
                   data-last-km-service="<?= (int)$vehicle['last_km_service'] ?>"
-                  <?= $data_edit['vehicle_id'] == $vehicle['vehicle_id'] ? 'selected' : '' ?>
+                  <?= $dataEdit['vehicle_id'] == $vehicle['vehicle_id'] ? 'selected' : '' ?>
                 >
                   <?= htmlspecialchars($vehicle['nopol']) ?> - <?= htmlspecialchars($vehicle['driver_nm']) ?>
                 </option>
@@ -249,58 +241,52 @@ $isCreateMode = $action === 'create';
 
           <div class="col-md-6 mb-3">
             <label>No Polisi</label>
-            <input type="text" id="nopolInput" name="nopol" class="form-control"
-                   value="<?= htmlspecialchars($data_edit['nopol']) ?>" readonly required>
+            <input type="text" id="nopolInput" name="nopol" class="form-control" value="<?= htmlspecialchars($dataEdit['nopol']) ?>" readonly required>
           </div>
 
           <div class="col-md-6 mb-3">
             <label>Driver</label>
-            <input type="text" id="driverInput" name="driver_nm" class="form-control"
-                   value="<?= htmlspecialchars($data_edit['driver_nm']) ?>" readonly>
+            <input type="text" id="driverInput" name="driver_nm" class="form-control" value="<?= htmlspecialchars($dataEdit['driver_nm']) ?>" readonly>
           </div>
 
           <div class="col-md-6 mb-3">
             <label>Total KM</label>
-            <input type="number" id="totalKmInput" name="total_km" class="form-control"
-                   value="<?= (int)$data_edit['total_km'] ?>" required>
+            <input type="number" id="totalKmInput" name="total_km" class="form-control" value="<?= (int)$dataEdit['total_km'] ?>" required>
           </div>
 
           <div class="col-md-6 mb-3">
             <label>KM Service Terakhir</label>
-            <input type="number" id="lastKmInput" name="last_km_service" class="form-control"
-                   value="<?= (int)$data_edit['last_km_service'] ?>" required>
+            <input type="number" id="lastKmInput" name="last_km_service" class="form-control" value="<?= (int)$dataEdit['last_km_service'] ?>" required>
           </div>
 
           <div class="col-md-6 mb-3">
             <label>Status</label>
             <select name="status" class="form-control" required>
-              <option value="claim" <?= $data_edit['status'] === 'claim' ? 'selected' : '' ?>>claim</option>
-              <option value="ganti" <?= $data_edit['status'] === 'ganti' ? 'selected' : '' ?>>ganti</option>
-              <option value="perbaikan" <?= $data_edit['status'] === 'perbaikan' ? 'selected' : '' ?>>perbaikan</option>
+              <option value="claim" <?= $dataEdit['status'] === 'claim' ? 'selected' : '' ?>>claim</option>
+              <option value="ganti" <?= $dataEdit['status'] === 'ganti' ? 'selected' : '' ?>>ganti</option>
+              <option value="perbaikan" <?= $dataEdit['status'] === 'perbaikan' ? 'selected' : '' ?>>perbaikan</option>
             </select>
           </div>
 
           <div class="col-md-6 mb-3">
             <label>Kategori</label>
             <select name="kategori" class="form-control" required>
-              <option value="normal" <?= $data_edit['kategori'] === 'normal' ? 'selected' : '' ?>>normal</option>
-              <option value="tidak normal" <?= $data_edit['kategori'] === 'tidak normal' ? 'selected' : '' ?>>tidak normal</option>
+              <option value="normal" <?= $dataEdit['kategori'] === 'normal' ? 'selected' : '' ?>>normal</option>
+              <option value="tidak normal" <?= $dataEdit['kategori'] === 'tidak normal' ? 'selected' : '' ?>>tidak normal</option>
             </select>
           </div>
 
-          <?php if ($isCreateMode): ?>
-            <div class="col-md-12 mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="mb-0">Barang (Batch Opsional)</label>
-                <button type="button" id="addBarangItemBtn" class="btn btn-sm btn-outline-primary">
-                  + Tambah Barang
-                </button>
-              </div>
+          <div class="col-md-12 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="mb-0">Child Item Barang Service</label>
+              <button type="button" id="addBarangItemBtn" class="btn btn-sm btn-outline-primary">+ Tambah Item</button>
+            </div>
 
-              <div id="barangBatchWrapper">
+            <div id="barangBatchWrapper">
+              <?php foreach ($dataEdit['items'] as $item): ?>
                 <div class="barang-item border rounded p-2 mb-2">
                   <div class="row">
-                    <div class="col-md-6 mb-2">
+                    <div class="col-md-4 mb-2">
                       <label>Barang</label>
                       <select name="id_barang[]" class="form-control barang-select">
                         <option value="">Tanpa Barang</option>
@@ -309,6 +295,7 @@ $isCreateMode = $action === 'create';
                             value="<?= (int)$barang['id'] ?>"
                             data-harga="<?= (float)$barang['harga_satuan'] ?>"
                             data-stok="<?= (int)$barang['stok'] ?>"
+                            <?= (int)($item['id_barang'] ?? 0) === (int)$barang['id'] ? 'selected' : '' ?>
                           >
                             <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
                           </option>
@@ -316,14 +303,35 @@ $isCreateMode = $action === 'create';
                       </select>
                     </div>
 
-                    <div class="col-md-3 mb-2">
+                    <div class="col-md-2 mb-2">
                       <label>Jumlah</label>
-                      <input type="number" min="0" name="jumlah[]" class="form-control jumlah-input" value="0">
+                      <input type="number" min="0" name="jumlah[]" class="form-control jumlah-input" value="<?= (int)($item['jumlah'] ?? 0) ?>">
                     </div>
 
-                    <div class="col-md-3 mb-2">
+                    <div class="col-md-2 mb-2">
                       <label>Harga Satuan</label>
-                      <input type="number" min="0" name="harga_satuan[]" class="form-control harga-input" value="0" readonly>
+                      <input type="number" min="0" name="harga_satuan[]" class="form-control harga-input" value="<?= (float)($item['harga_satuan'] ?? 0) ?>" readonly>
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+                      <label>Mekanik</label>
+                      <select name="mekanik_id[]" class="form-control">
+                        <option value="">Pilih Mekanik</option>
+                        <?php foreach ($mekanikOptions as $mekanik): ?>
+                          <option value="<?= (int)$mekanik['id'] ?>" <?= (int)($item['mekanik_id'] ?? 0) === (int)$mekanik['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($mekanik['nama']) ?>
+                          </option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="col-md-2 mb-2">
+                      <label>Tools</label>
+                      <select name="tools[]" class="form-control">
+                        <?php $toolsVal = strtolower((string)($item['tools'] ?? 'tidak')); ?>
+                        <option value="tidak" <?= $toolsVal === 'tidak' ? 'selected' : '' ?>>tidak</option>
+                        <option value="ya" <?= $toolsVal === 'ya' ? 'selected' : '' ?>>ya</option>
+                      </select>
                     </div>
 
                     <div class="col-md-12 d-flex justify-content-end">
@@ -331,73 +339,38 @@ $isCreateMode = $action === 'create';
                     </div>
                   </div>
                 </div>
-              </div>
+              <?php endforeach; ?>
             </div>
-          <?php else: ?>
-            <div class="col-md-6 mb-3">
-              <label>Barang (Opsional)</label>
-              <select id="barangSelect" name="id_barang" class="form-control">
-                <option value="">Tanpa Barang</option>
-                <?php foreach ($inventoriOptions as $barang): ?>
-                  <option
-                    value="<?= (int)$barang['id'] ?>"
-                    data-harga="<?= (float)$barang['harga_satuan'] ?>"
-                    data-stok="<?= (int)$barang['stok'] ?>"
-                    <?= (int)$data_edit['id_barang'] === (int)$barang['id'] ? 'selected' : '' ?>
-                  >
-                    <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
-                  </option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-
-            <div class="col-md-3 mb-3">
-              <label>Jumlah</label>
-              <input type="number" min="0" id="jumlahInput" name="jumlah" class="form-control"
-                     value="<?= (int)$data_edit['jumlah'] ?>">
-            </div>
-
-            <div class="col-md-3 mb-3">
-              <label>Harga Satuan</label>
-              <input type="number" min="0" id="hargaInput" name="harga_satuan" class="form-control"
-                     value="<?= (float)$data_edit['harga_satuan'] ?>" readonly>
-            </div>
-          <?php endif; ?>
+          </div>
 
           <div class="col-md-12 mb-3">
             <label>Total Harga</label>
-            <input type="text" id="totalHargaPreview" class="form-control"
-                   value="Rp <?= number_format(((int)$data_edit['jumlah'] * (float)$data_edit['harga_satuan']), 0, ',', '.') ?>" readonly>
+            <input type="text" id="totalHargaPreview" class="form-control" value="Rp <?= number_format($existingTotal, 0, ',', '.') ?>" readonly>
           </div>
 
           <div class="col-md-12 mb-3">
             <label>Keterangan</label>
-            <textarea name="keterangan" class="form-control" rows="3"><?= htmlspecialchars($data_edit['keterangan']) ?></textarea>
+            <textarea name="keterangan" class="form-control" rows="3"><?= htmlspecialchars($dataEdit['keterangan']) ?></textarea>
           </div>
         </div>
 
         <div class="d-flex justify-content-between">
           <a href="index.php?page=riwayat" class="btn btn-outline-secondary">Kembali</a>
-          <button type="submit" class="btn bg-gradient-primary">
-            <?= $action === 'create' ? 'Simpan Riwayat' : 'Update Riwayat' ?>
-          </button>
+          <button type="submit" class="btn bg-gradient-primary"><?= $action === 'create' ? 'Simpan Riwayat' : 'Update Riwayat' ?></button>
         </div>
-
       </form>
     </div>
   </div>
 </div>
-
 <?php endif; ?>
 
-<div id="detailModalOverlay" class="riwayat-overlay" style="display: none;">
+<div id="detailModalOverlay" class="riwayat-overlay" style="display:none;">
   <div class="card shadow-lg border-0 riwayat-overlay-card">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 id="detailTitle" class="mb-0">Detail Riwayat Service</h5>
       <button class="btn btn-sm btn-outline-secondary" onclick="closeDetailModal()">Tutup</button>
     </div>
-
-    <div class="card-body" style="max-height: 70vh; overflow-y: auto;">
+    <div class="card-body" style="max-height:70vh; overflow-y:auto;">
       <div class="row">
         <div class="col-md-4 mb-3"><label class="text-muted">ID</label><p id="detail_id" class="fw-bold">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tanggal</label><p id="detail_tanggal">-</p></div>
@@ -409,10 +382,9 @@ $isCreateMode = $action === 'create';
         <div class="col-md-4 mb-3"><label class="text-muted">Total KM</label><p id="detail_total_km">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Last KM Service</label><p id="detail_last_km_service">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Masa Pakai</label><p id="detail_masa_pakai_km">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Barang</label><p id="detail_nama_barang">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Jumlah</label><p id="detail_jumlah">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Harga Satuan</label><p id="detail_harga_satuan">-</p></div>
+        <div class="col-md-4 mb-3"><label class="text-muted">Total Qty Item</label><p id="detail_total_qty">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Total Harga</label><p id="detail_total_harga">-</p></div>
+        <div class="col-md-12 mb-3"><label class="text-muted">Item Service</label><p id="detail_item_summary">-</p></div>
         <div class="col-md-12 mb-3"><label class="text-muted">Keterangan</label><p id="detail_keterangan">-</p></div>
       </div>
     </div>
@@ -435,12 +407,10 @@ function showDetailModal(rowData) {
   document.getElementById('detail_total_km').textContent = formatValue(rowData.total_km, 0) + ' KM';
   document.getElementById('detail_last_km_service').textContent = formatValue(rowData.last_km_service, 0) + ' KM';
   document.getElementById('detail_masa_pakai_km').textContent = formatValue(rowData.masa_pakai_km, 0) + ' KM';
-  document.getElementById('detail_nama_barang').textContent = formatValue(rowData.nama_barang, '-');
-  document.getElementById('detail_jumlah').textContent = formatValue(rowData.jumlah, 0);
-  document.getElementById('detail_harga_satuan').textContent = 'Rp ' + Number(formatValue(rowData.harga_satuan, 0)).toLocaleString('id-ID');
+  document.getElementById('detail_total_qty').textContent = formatValue(rowData.total_qty, 0);
   document.getElementById('detail_total_harga').textContent = 'Rp ' + Number(formatValue(rowData.total_harga, 0)).toLocaleString('id-ID');
+  document.getElementById('detail_item_summary').textContent = formatValue(rowData.item_summary, '-');
   document.getElementById('detail_keterangan').textContent = formatValue(rowData.keterangan, '-');
-
   document.getElementById('detailTitle').textContent = 'Detail Riwayat - ' + (rowData.nopol || '?');
   document.getElementById('detailModalOverlay').style.display = 'flex';
 }
@@ -450,30 +420,22 @@ function closeDetailModal() {
 }
 
 document.getElementById('detailModalOverlay')?.addEventListener('click', function (e) {
-  if (e.target === this) {
-    closeDetailModal();
-  }
+  if (e.target === this) closeDetailModal();
 });
 
 let rowsPerPage = 10;
 let currentPage = 1;
-
 const table = document.getElementById('riwayatTable');
 const tbody = table.querySelector('tbody');
 const rows = Array.from(tbody.querySelectorAll('tr'));
 
 function displayTable() {
-  // server-side search already applied; just paginate whatever rows are present
   const visibleRows = rows;
-
   const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
   if (currentPage > totalPages) currentPage = totalPages || 1;
 
   visibleRows.forEach((row, index) => {
-    row.style.display =
-      index >= (currentPage - 1) * rowsPerPage && index < currentPage * rowsPerPage
-        ? ''
-        : 'none';
+    row.style.display = index >= (currentPage - 1) * rowsPerPage && index < currentPage * rowsPerPage ? '' : 'none';
   });
 
   renderPagination(totalPages);
@@ -483,26 +445,19 @@ function displayTable() {
 function renderPagination(totalPages) {
   const pagination = document.getElementById('pagination');
   pagination.innerHTML = '';
-
   if (totalPages <= 1) return;
 
   const prevBtn = document.createElement('button');
   prevBtn.className = 'btn btn-sm btn-outline-primary';
   prevBtn.innerHTML = '&laquo;';
   prevBtn.disabled = currentPage === 1;
-  prevBtn.onclick = function () {
-    currentPage--;
-    displayTable();
-  };
+  prevBtn.onclick = function () { currentPage--; displayTable(); };
 
   const nextBtn = document.createElement('button');
   nextBtn.className = 'btn btn-sm btn-outline-primary';
   nextBtn.innerHTML = '&raquo;';
   nextBtn.disabled = currentPage === totalPages;
-  nextBtn.onclick = function () {
-    currentPage++;
-    displayTable();
-  };
+  nextBtn.onclick = function () { currentPage++; displayTable(); };
 
   pagination.appendChild(prevBtn);
   pagination.appendChild(nextBtn);
@@ -511,16 +466,10 @@ function renderPagination(totalPages) {
 function renderInfo(totalData) {
   const start = totalData === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const end = Math.min(currentPage * rowsPerPage, totalData);
-
-  document.getElementById('dataInfo').innerHTML =
-    `Menampilkan ${start} - ${end} dari ${totalData} data`;
+  document.getElementById('dataInfo').innerHTML = `Menampilkan ${start} - ${end} dari ${totalData} data`;
 }
 
-// initial pagination render
-
-// render the first page of results once everything is defined
 displayTable();
-
 
 const vehicleSelect = document.getElementById('vehicleSelect');
 const nopolInput = document.getElementById('nopolInput');
@@ -545,7 +494,6 @@ if (vehicleSelect) {
     if (!totalKmInput.value || totalKmInput.value === '0') {
       totalKmInput.value = selected.dataset.totalKm || 0;
     }
-
     if (!lastKmInput.value || lastKmInput.value === '0') {
       lastKmInput.value = selected.dataset.lastKmService || 0;
     }
@@ -560,10 +508,7 @@ const totalHargaPreview = document.getElementById('totalHargaPreview');
 function bindBatchBarangUI() {
   const batchWrapper = document.getElementById('barangBatchWrapper');
   const addBarangItemBtn = document.getElementById('addBarangItemBtn');
-
-  if (!batchWrapper || !addBarangItemBtn) {
-    return false;
-  }
+  if (!batchWrapper || !addBarangItemBtn) return;
 
   const getHargaFromSelect = (selectEl) => {
     if (!selectEl || !selectEl.value) return 0;
@@ -572,29 +517,19 @@ function bindBatchBarangUI() {
   };
 
   const syncItemTotal = (itemEl) => {
-    if (!itemEl) return 0;
     const selectEl = itemEl.querySelector('.barang-select');
     const jumlahEl = itemEl.querySelector('.jumlah-input');
     const hargaEl = itemEl.querySelector('.harga-input');
-
     const harga = getHargaFromSelect(selectEl);
     const jumlah = Number(jumlahEl?.value || 0);
-
-    if (hargaEl) {
-      hargaEl.value = harga;
-    }
-
+    if (hargaEl) hargaEl.value = harga;
     return harga * jumlah;
   };
 
   const recalculateBatchTotal = () => {
     const items = batchWrapper.querySelectorAll('.barang-item');
     let grandTotal = 0;
-
-    items.forEach((itemEl) => {
-      grandTotal += syncItemTotal(itemEl);
-    });
-
+    items.forEach((itemEl) => { grandTotal += syncItemTotal(itemEl); });
     if (totalHargaPreview) {
       totalHargaPreview.value = 'Rp ' + grandTotal.toLocaleString('id-ID');
     }
@@ -606,11 +541,13 @@ function bindBatchBarangUI() {
 
     const clone = firstItem.cloneNode(true);
     clone.querySelectorAll('select').forEach((el) => {
-      el.selectedIndex = 0;
+      if (el.name === 'tools[]') {
+        el.value = 'tidak';
+      } else {
+        el.selectedIndex = 0;
+      }
     });
-    clone.querySelectorAll('input').forEach((el) => {
-      el.value = '0';
-    });
+    clone.querySelectorAll('input').forEach((el) => { el.value = '0'; });
     batchWrapper.appendChild(clone);
     recalculateBatchTotal();
   });
@@ -623,11 +560,13 @@ function bindBatchBarangUI() {
     const totalItems = batchWrapper.querySelectorAll('.barang-item').length;
     if (totalItems <= 1) {
       item.querySelectorAll('select').forEach((el) => {
-        el.selectedIndex = 0;
+        if (el.name === 'tools[]') {
+          el.value = 'tidak';
+        } else {
+          el.selectedIndex = 0;
+        }
       });
-      item.querySelectorAll('input').forEach((el) => {
-        el.value = '0';
-      });
+      item.querySelectorAll('input').forEach((el) => { el.value = '0'; });
     } else {
       item.remove();
     }
@@ -647,65 +586,30 @@ function bindBatchBarangUI() {
   });
 
   recalculateBatchTotal();
-  return true;
 }
 
-const isBatchMode = bindBatchBarangUI();
-if (!isBatchMode) {
-  const barangSelect = document.getElementById('barangSelect');
-  const jumlahInput = document.getElementById('jumlahInput');
-  const hargaInput = document.getElementById('hargaInput');
-
-  function updateHargaDanTotal() {
-    if (!barangSelect) return;
-
-    const selected = barangSelect.options[barangSelect.selectedIndex];
-    const harga = selected && selected.value ? Number(selected.dataset.harga || 0) : 0;
-    const jumlah = Number(jumlahInput?.value || 0);
-
-    if (hargaInput) {
-      hargaInput.value = harga;
-    }
-
-    if (totalHargaPreview) {
-      const total = harga * jumlah;
-      totalHargaPreview.value = 'Rp ' + total.toLocaleString('id-ID');
-    }
-  }
-
-  if (barangSelect) {
-    barangSelect.addEventListener('change', updateHargaDanTotal);
-  }
-  if (jumlahInput) {
-    jumlahInput.addEventListener('input', updateHargaDanTotal);
-  }
-  updateHargaDanTotal();
-}
+bindBatchBarangUI();
 </script>
 
-<!-- Select2 for searchable vehicle dropdown -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // initialize select2 on vehicle select if present
-    var $vehicle = $('#vehicleSelect');
-    if ($vehicle.length) {
-        $vehicle.select2({
-            placeholder: 'Pilih Vehicle',
-            allowClear: true,
-            width: '100%'
-        });
+  var $vehicle = $('#vehicleSelect');
+  if ($vehicle.length) {
+    $vehicle.select2({
+      placeholder: 'Pilih Vehicle',
+      allowClear: true,
+      width: '100%'
+    });
 
-        // when select2 changes we also trigger the native change event
-        $vehicle.on('select2:select select2:clear', function () {
-            // dispatch a native change so existing listeners run
-            var evt = document.createEvent('HTMLEvents');
-            evt.initEvent('change', true, false);
-            $vehicle[0].dispatchEvent(evt);
-        });
-    }
+    $vehicle.on('select2:select select2:clear', function () {
+      var evt = document.createEvent('HTMLEvents');
+      evt.initEvent('change', true, false);
+      $vehicle[0].dispatchEvent(evt);
+    });
+  }
 });
 </script>
 
