@@ -14,16 +14,22 @@ $rows = $canGenerate ? $model->getAll($search, $vehicleFilter, $dateStart, $date
 
 $grouped = [];
 foreach ($rows as $row) {
-    $vehicleId = (string)($row['vehicle_id'] ?? '');
+    $nopol = (string)($row['nopol'] ?? '');
     $driverNm = (string)($row['driver_nm'] ?? '');
     $tanggal = (string)($row['tanggal'] ?? '');
+    $status = (string)($row['status'] ?? '');
+    $kategori = (string)($row['kategori'] ?? '');
+    $referensi = (string)($row['id'] ?? '');
 
-    $groupKey = $vehicleId . '|' . $driverNm . '|' . $tanggal;
+    $groupKey = $nopol . '|' . $driverNm . '|' . $tanggal . '|' . $status . '|' . $kategori;
     if (!isset($grouped[$groupKey])) {
         $grouped[$groupKey] = [
-            'vehicle_id' => $vehicleId,
+            'nopol' => $nopol,
             'driver_nm' => $driverNm,
             'tanggal' => $tanggal,
+            'status' => $status,
+            'kategori' => $kategori,
+            'referensi' => $referensi,
             'items' => [],
             'total_harga' => 0.0,
             'total_qty' => 0
@@ -115,6 +121,40 @@ function e($value)
       font-size: 13px;
       line-height: 1.6;
     }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 8px;
+      margin-bottom: 12px;
+    }
+    .meta-card {
+      border: 1px solid #d7d7d7;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
+      font-size: 13px;
+    }
+    .meta-card h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #5a5a5a;
+      letter-spacing: .4px;
+    }
+    .meta-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 3px 0;
+    }
+    .meta-label {
+      color: #666;
+    }
+    .meta-value {
+      font-weight: 600;
+      text-align: right;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -162,6 +202,9 @@ function e($value)
         border-radius: 0;
         padding: 0;
       }
+      .meta-grid {
+        grid-template-columns: 1fr 1fr;
+      }
     }
   </style>
 </head>
@@ -187,25 +230,40 @@ function e($value)
           <div class="head">
             <div>
               <h1 class="title">Invoice Service</h1>
-              <p class="meta">
-                No Invoice: <?= e('INV-SRV-' . date('Ymd') . '-' . str_pad((string)$invoiceNo, 3, '0', STR_PAD_LEFT)) ?><br>
-                Tanggal Service: <strong><?= e($group['tanggal'] !== '' ? $group['tanggal'] : '-') ?></strong>
-              </p>
+              <p class="meta">Ringkasan detail service berdasarkan item_list</p>
             </div>
-            <p class="meta">
-              ID Vehicle: <strong><?= e($group['vehicle_id'] !== '' ? $group['vehicle_id'] : '-') ?></strong><br>
-              Driver: <strong><?= e($group['driver_nm'] !== '' ? $group['driver_nm'] : '-') ?></strong>
-            </p>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-card">
+              <h3>Detail Kendaraan</h3>
+              <div class="meta-line"><span class="meta-label">No Polisi:</span><span class="meta-value"><?= e($group['nopol'] !== '' ? $group['nopol'] : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Driver:</span><span class="meta-value"><?= e($group['driver_nm'] !== '' ? $group['driver_nm'] : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Referensi:</span><span class="meta-value"><?= e($group['referensi'] !== '' ? ('RWY-' . $group['referensi']) : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Status:</span><span class="meta-value"><?= e($group['status'] !== '' ? $group['status'] : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Kategori:</span><span class="meta-value"><?= e($group['kategori'] !== '' ? $group['kategori'] : '-') ?></span></div>
+            </div>
+            <div class="meta-card">
+              <h3>Detail Tanggal & Dokumen</h3>
+              <div class="meta-line"><span class="meta-label">No Invoice:</span><span class="meta-value"><?= e('INV-SRV-' . date('Ymd') . '-' . str_pad((string)$invoiceNo, 3, '0', STR_PAD_LEFT)) ?></span></div>
+              <div class="meta-line"><span class="meta-label">Dibuat:</span><span class="meta-value"><?= e(date('Y-m-d H:i:s')) ?></span></div>
+              <div class="meta-line"><span class="meta-label">Tanggal Service:</span><span class="meta-value"><?= e($group['tanggal'] !== '' ? $group['tanggal'] : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Filter Mulai:</span><span class="meta-value"><?= e($dateStart !== '' ? $dateStart : '-') ?></span></div>
+              <div class="meta-line"><span class="meta-label">Filter Selesai:</span><span class="meta-value"><?= e($dateEnd !== '' ? $dateEnd : '-') ?></span></div>
+            </div>
           </div>
 
           <table>
             <thead>
               <tr>
                 <th style="width: 50px;">No</th>
+                <th style="width: 90px;">ID Item</th>
                 <th>Barang</th>
                 <th style="width: 110px;">Jumlah</th>
                 <th style="width: 160px;">Harga Satuan</th>
                 <th style="width: 160px;">Total</th>
+                <th style="width: 110px;">Mekanik</th>
+                <th style="width: 90px;">Tools</th>
               </tr>
             </thead>
             <tbody>
@@ -213,10 +271,13 @@ function e($value)
               <?php foreach ($group['items'] as $item): ?>
                 <tr>
                   <td><?= $rowNo ?></td>
+                  <td><?= (int)($item['item_id'] ?? 0) ?></td>
                   <td><?= e($item['nama_barang'] ?? '-') ?></td>
                   <td class="text-right"><?= (int)($item['jumlah'] ?? 0) ?></td>
                   <td class="text-right">Rp <?= number_format((float)($item['harga_satuan'] ?? 0), 0, ',', '.') ?></td>
                   <td class="text-right">Rp <?= number_format((float)($item['total_harga'] ?? 0), 0, ',', '.') ?></td>
+                  <td><?= e($item['mekanik_id'] ?? '-') ?></td>
+                  <td><?= e($item['tools'] ?? '-') ?></td>
                 </tr>
                 <?php $rowNo++; ?>
               <?php endforeach; ?>

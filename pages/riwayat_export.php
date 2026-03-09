@@ -13,16 +13,22 @@ $search = trim($_GET['search'] ?? '');
 $vehicleFilter = trim($_GET['vehicle_id'] ?? '');
 $dateStart = trim($_GET['date_start'] ?? '');
 $dateEnd   = trim($_GET['date_end'] ?? '');
+$statusFilter = trim($_GET['status'] ?? '');
 
-$data = $model->getAll($search, $vehicleFilter, $dateStart, $dateEnd);
+$allowedStatus = ['jadwal', 'pending', 'sedang dikerjakan', 'siap operasi', 'selesai'];
+if (!in_array(strtolower($statusFilter), $allowedStatus, true)) {
+    $statusFilter = '';
+}
+
+$data = $model->getParentExportList($search, $vehicleFilter, $dateStart, $dateEnd, $statusFilter);
 
 $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 
 // header row
 $headers = [
-    'ID', 'Tanggal', 'Vehicle ID', 'No Pol', 'Driver', 'Status', 'Kategori',
-    'Masa Pakai KM', 'Barang', 'Jumlah', 'Harga Satuan', 'Total Harga', 'Keterangan'
+    'ID', 'Tanggal', 'No Pol', 'Driver', 'Status', 'Kategori',
+    'Masa Pakai KM', 'Item List', 'Total Qty', 'Total Harga', 'Keterangan'
 ];
 // helper to convert 1-based column number to Excel letter
 function colLetter($c) {
@@ -43,17 +49,15 @@ $rowNum = 2;
 foreach ($data as $row) {
     $sheet->setCellValue('A' . $rowNum, $row['id']);
     $sheet->setCellValue('B' . $rowNum, $row['tanggal']);
-    $sheet->setCellValue('C' . $rowNum, $row['vehicle_id']);
-    $sheet->setCellValue('D' . $rowNum, $row['nopol']);
-    $sheet->setCellValue('E' . $rowNum, $row['driver_nm']);
-    $sheet->setCellValue('F' . $rowNum, $row['status']);
-    $sheet->setCellValue('G' . $rowNum, $row['kategori']);
-    $sheet->setCellValue('H' . $rowNum, $row['masa_pakai_km']);
-    $sheet->setCellValue('I' . $rowNum, $row['nama_barang']);
-    $sheet->setCellValue('J' . $rowNum, $row['jumlah']);
-    $sheet->setCellValue('K' . $rowNum, $row['harga_satuan']);
-    $sheet->setCellValue('L' . $rowNum, $row['total_harga']);
-    $sheet->setCellValue('M' . $rowNum, $row['keterangan']);
+    $sheet->setCellValue('C' . $rowNum, $row['nopol']);
+    $sheet->setCellValue('D' . $rowNum, $row['driver_nm']);
+    $sheet->setCellValue('E' . $rowNum, $row['status']);
+    $sheet->setCellValue('F' . $rowNum, $row['kategori']);
+    $sheet->setCellValue('G' . $rowNum, $row['masa_pakai_km']);
+    $sheet->setCellValue('H' . $rowNum, $row['item_list']);
+    $sheet->setCellValue('I' . $rowNum, $row['total_qty']);
+    $sheet->setCellValue('J' . $rowNum, $row['total_harga']);
+    $sheet->setCellValue('K' . $rowNum, $row['keterangan']);
     $rowNum++;
 }
 

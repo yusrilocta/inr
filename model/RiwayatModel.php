@@ -34,21 +34,13 @@ class RiwayatModel {
         $params = [];
 
         if ($search !== null && $search !== '') {
-            // match search term against several relevant columns
-            $conditions[] = "(
-                r.vehicle_id LIKE ? OR
-                r.nopol LIKE ? OR
-                r.driver_nm LIKE ? OR
-                r.status LIKE ? OR
-                r.kategori LIKE ? OR
-                i.nama LIKE ?
-            )";
+            $conditions[] = "r.nopol LIKE ?";
             $like = "%{$search}%";
-            $params = array_merge($params, [$like, $like, $like, $like, $like, $like]);
+            $params[] = $like;
         }
 
         if ($vehicleId !== null && $vehicleId !== '') {
-            $conditions[] = "r.vehicle_id = ?";
+            $conditions[] = "r.nopol = ?";
             $params[] = $vehicleId;
         }
 
@@ -76,7 +68,12 @@ class RiwayatModel {
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
-    public function getParentList($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null) {
+    public function getParentList($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null, $status = null, $dateColumn = 'tanggal') {
+        $allowedDateColumns = ['tanggal', 'tgl_sedang_dikerjakan', 'tgl_siap_operasi', 'tgl_selesai'];
+        if (!in_array($dateColumn, $allowedDateColumns, true)) {
+            $dateColumn = 'tanggal';
+        }
+
         $sql = "
             SELECT
                 r.*,
@@ -95,30 +92,28 @@ class RiwayatModel {
         $params = [];
 
         if ($search !== null && $search !== '') {
-            $conditions[] = "(
-                r.vehicle_id LIKE ? OR
-                r.nopol LIKE ? OR
-                r.driver_nm LIKE ? OR
-                r.status LIKE ? OR
-                r.kategori LIKE ? OR
-                i.nama LIKE ?
-            )";
+            $conditions[] = "r.nopol LIKE ?";
             $like = "%{$search}%";
-            $params = array_merge($params, [$like, $like, $like, $like, $like, $like]);
+            $params[] = $like;
         }
 
         if ($vehicleId !== null && $vehicleId !== '') {
-            $conditions[] = "r.vehicle_id = ?";
+            $conditions[] = "r.nopol = ?";
             $params[] = $vehicleId;
         }
 
         if ($dateStart !== null && $dateStart !== '') {
-            $conditions[] = "r.tanggal >= ?";
+            $conditions[] = "r.{$dateColumn} >= ?";
             $params[] = $dateStart;
         }
         if ($dateEnd !== null && $dateEnd !== '') {
-            $conditions[] = "r.tanggal <= ?";
+            $conditions[] = "r.{$dateColumn} <= ?";
             $params[] = $dateEnd;
+        }
+
+        if ($status !== null && $status !== '') {
+            $conditions[] = "r.status = ?";
+            $params[] = $status;
         }
 
         if (!empty($conditions)) {
@@ -126,6 +121,76 @@ class RiwayatModel {
         }
 
         $sql .= " GROUP BY r.id ORDER BY r.id DESC";
+        $stmt = $this->conn->prepare($sql);
+        if (!empty($params)) {
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function getParentExportList($search = null, $vehicleId = null, $dateStart = null, $dateEnd = null, $status = null) {
+        $sql = "
+            SELECT
+                r.id,
+                r.tanggal,
+                r.nopol,
+                r.driver_nm,
+                r.status,
+                r.kategori,
+                r.masa_pakai_km,
+                COALESCE(SUM(il.jumlah), 0) AS total_qty,
+                COALESCE(SUM(il.total_harga), 0) AS total_harga,
+                GROUP_CONCAT(
+                    CONCAT(
+                        COALESCE(i.nama, 'Tanpa Barang'),
+                        ' x', COALESCE(il.jumlah, 0),
+                        ' (', COALESCE(il.harga_satuan, 0), ')'
+                    )
+                    ORDER BY il.id ASC SEPARATOR ', '
+                ) AS item_list,
+                r.keterangan
+            FROM {$this->table} r
+            LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
+            LEFT JOIN inventori i ON il.id_barang = i.id
+        ";
+
+        $conditions = [];
+        $params = [];
+
+        if ($search !== null && $search !== '') {
+            $conditions[] = "r.nopol LIKE ?";
+            $params[] = "%{$search}%";
+        }
+
+        if ($vehicleId !== null && $vehicleId !== '') {
+            $conditions[] = "r.nopol = ?";
+            $params[] = $vehicleId;
+        }
+
+        if ($dateStart !== null && $dateStart !== '') {
+            $conditions[] = "r.tanggal >= ?";
+            $params[] = $dateStart;
+        }
+
+        if ($dateEnd !== null && $dateEnd !== '') {
+            $conditions[] = "r.tanggal <= ?";
+            $params[] = $dateEnd;
+        }
+
+        if ($status !== null && $status !== '') {
+            $conditions[] = "r.status = ?";
+            $params[] = $status;
+        }
+
+        if (!empty($conditions)) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        $sql .= " GROUP BY r.id ORDER BY r.id DESC";
+
         $stmt = $this->conn->prepare($sql);
         if (!empty($params)) {
             $types = str_repeat('s', count($params));
@@ -171,32 +236,118 @@ class RiwayatModel {
         try {
             $this->conn->begin_transaction();
 
-            $total_km         = (int)$data['total_km'];
-            $last_km_service  = (int)$data['last_km_service'];
-            $masa_pakai_km    = $total_km - $last_km_service;
+            $nopol = $data['nopol'] ?? '';
+            $driver_nm = $data['driver_nm'] ?? '';
+            $total_km = (int)($data['total_km'] ?? 0);
+            $last_km_service = (int)($data['last_km_service'] ?? 0);
+            $masa_pakai_km = $total_km - $last_km_service;
+            if ($masa_pakai_km < 0) {
+                $masa_pakai_km = 0;
+            }
+
+            $tanggal = trim((string)($data['tanggal'] ?? ''));
+            $hasTanggal = $tanggal !== '';
+            if ($hasTanggal) {
+                $sql = "
+                    INSERT INTO {$this->table}
+                    (nopol, driver_nm,
+                    total_km, last_km_service, masa_pakai_km,
+                     status, kategori, keterangan, tanggal)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param(
+                    "ssiiissss",
+                    $nopol,
+                    $driver_nm,
+                    $total_km,
+                    $last_km_service,
+                    $masa_pakai_km,
+                    $data['status'],
+                    $data['kategori'],
+                    $data['keterangan'],
+                    $tanggal
+                );
+            } else {
+                $sql = "
+                    INSERT INTO {$this->table}
+                    (nopol, driver_nm,
+                    total_km, last_km_service, masa_pakai_km,
+                     status, kategori, keterangan)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bind_param(
+                    "ssiiisss",
+                    $nopol,
+                    $driver_nm,
+                    $total_km,
+                    $last_km_service,
+                    $masa_pakai_km,
+                    $data['status'],
+                    $data['kategori'],
+                    $data['keterangan']
+                );
+            }
+            $stmt->execute();
+
+            $riwayatId = (int)$this->conn->insert_id;
+            $items = $this->normalizeItems($data);
+            $this->insertItems($riwayatId, $items);
+
+            if (strtolower((string)($data['status'] ?? '')) !== 'jadwal') {
+                $this->syncVehicleServiceInfo($nopol, $total_km);
+            }
+
+            $this->conn->commit();
+            return true;
+
+        } catch (Throwable $e) {
+            $this->conn->rollback();
+            return false;
+        }
+    }
+
+    public function createJadwal($data) {
+        try {
+            $this->conn->begin_transaction();
+
+            $nopol = trim((string)($data['nopol'] ?? ''));
+            $driver_nm = trim((string)($data['driver_nm'] ?? ''));
+            $tanggal = trim((string)($data['tanggal'] ?? ''));
+            $kategori = trim((string)($data['kategori'] ?? 'normal'));
+            $keterangan = trim((string)($data['keterangan'] ?? ''));
+
+            if ($nopol === '' || $tanggal === '') {
+                $this->conn->rollback();
+                return false;
+            }
+
+            $status = 'jadwal';
+            $total_km = (int)($data['total_km'] ?? 0);
+            $last_km_service = (int)($data['last_km_service'] ?? 0);
+            $masa_pakai_km = $total_km - $last_km_service;
             if ($masa_pakai_km < 0) {
                 $masa_pakai_km = 0;
             }
 
             $sql = "
                 INSERT INTO {$this->table}
-                (vehicle_id, nopol, driver_nm,
-                total_km, last_km_service, masa_pakai_km,
-                 status, kategori, keterangan)
+                (nopol, driver_nm, total_km, last_km_service, masa_pakai_km, status, kategori, keterangan, tanggal)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
             $stmt = $this->conn->prepare($sql);
             $stmt->bind_param(
-                "sssiiisss",
-                $data['vehicle_id'],
-                $data['nopol'],
-                $data['driver_nm'],
+                "ssiiissss",
+                $nopol,
+                $driver_nm,
                 $total_km,
                 $last_km_service,
                 $masa_pakai_km,
-                $data['status'],
-                $data['kategori'],
-                $data['keterangan']
+                $status,
+                $kategori,
+                $keterangan,
+                $tanggal
             );
             $stmt->execute();
 
@@ -204,11 +355,8 @@ class RiwayatModel {
             $items = $this->normalizeItems($data);
             $this->insertItems($riwayatId, $items);
 
-            $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
-
             $this->conn->commit();
             return true;
-
         } catch (Throwable $e) {
             $this->conn->rollback();
             return false;
@@ -234,6 +382,10 @@ class RiwayatModel {
             $total_km         = (int)$data['total_km'];
             $last_km_service  = (int)$data['last_km_service'];
             $masa_pakai_km    = $total_km - $last_km_service;
+            $tanggal          = trim((string)($data['tanggal'] ?? ''));
+            if ($tanggal === '') {
+                $tanggal = (string)($old['tanggal'] ?? date('Y-m-d'));
+            }
             if ($masa_pakai_km < 0) {
                 $masa_pakai_km = 0;
             }
@@ -242,21 +394,20 @@ class RiwayatModel {
 
             $sql = "
                 UPDATE {$this->table}
-                SET vehicle_id = ?,
-                    nopol = ?,
+                SET nopol = ?,
                     driver_nm = ?,
                     total_km = ?,
                     last_km_service = ?,
                     masa_pakai_km = ?,
                     status = ?,
                     kategori = ?,
-                    keterangan = ?
+                    keterangan = ?,
+                    tanggal = ?
                 WHERE id = ?
             ";
             $stmt = $this->conn->prepare($sql);
             $stmt->bind_param(
-                "sssiiisssi",
-                $data['vehicle_id'],
+                "ssiiissssi",
                 $data['nopol'],
                 $data['driver_nm'],
                 $total_km,
@@ -265,6 +416,7 @@ class RiwayatModel {
                 $data['status'],
                 $data['kategori'],
                 $data['keterangan'],
+                $tanggal,
                 $id
             );
             $stmt->execute();
@@ -276,7 +428,9 @@ class RiwayatModel {
             $newItems = $this->normalizeItems($data);
             $this->insertItems($id, $newItems);
 
-            $this->syncVehicleServiceInfo($data['vehicle_id'], $total_km);
+            if (strtolower((string)($data['status'] ?? '')) !== 'jadwal') {
+                $this->syncVehicleServiceInfo($data['nopol'], $total_km);
+            }
 
             $this->conn->commit();
             return true;
@@ -284,6 +438,54 @@ class RiwayatModel {
             $this->conn->rollback();
             return false;
         }
+    }
+
+    public function updateStatusToSedangDikerjakan($id) {
+        $id = (int)$id;
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("
+            UPDATE {$this->table}
+            SET status = 'sedang dikerjakan',
+                tgl_sedang_dikerjakan = CURDATE()
+            WHERE id = ?
+        ");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
+    }
+
+    public function updateStatusToSiapOperasi($id) {
+        $id = (int)$id;
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("
+            UPDATE {$this->table}
+            SET status = 'siap operasi',
+                tgl_siap_operasi = CURDATE()
+            WHERE id = ?
+        ");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
+    }
+
+    public function updateStatusToSelesai($id) {
+        $id = (int)$id;
+        if ($id <= 0) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("
+            UPDATE {$this->table}
+            SET status = 'selesai',
+                tgl_selesai = CURDATE()
+            WHERE id = ?
+        ");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
     }
 
     /* ===============================
@@ -317,7 +519,7 @@ class RiwayatModel {
             SELECT COALESCE(SUM(il.total_harga), 0) as total_biaya
             FROM {$this->table} r
             LEFT JOIN {$this->itemTable} il ON il.riwayat_id = r.id
-            WHERE r.vehicle_id = ?
+            WHERE r.nopol = ?
         ");
         $stmt->bind_param("s", $vehicle_id);
         $stmt->execute();
@@ -361,13 +563,13 @@ class RiwayatModel {
     /* ===============================
        SYNC SERVICE INFO KE VEHICLE
     =============================== */
-    private function syncVehicleServiceInfo($vehicle_id, $total_km) {
+    private function syncVehicleServiceInfo($nopol, $total_km) {
         $today = date('Y-m-d');
         $sql = "UPDATE vehicles
                 SET last_km_service = ?, last_service = ?
-                WHERE vehicle_id = ?";
+                WHERE nopol = ?";
         $stmt = $this->conn->prepare($sql);
-        $stmt->bind_param("iss", $total_km, $today, $vehicle_id);
+        $stmt->bind_param("iss", $total_km, $today, $nopol);
         $stmt->execute();
     }
 

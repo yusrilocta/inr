@@ -7,19 +7,25 @@ $action = $_GET['action'] ?? null;
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->create($_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_selesai");
     exit;
 }
 
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->update($_GET['id'] ?? 0, $_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_selesai");
+    exit;
+}
+
+if ($action === 'schedule_create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $model->createJadwal($_POST);
+    header("Location: index.php?page=jadwal_service");
     exit;
 }
 
 if ($action === 'delete') {
     $model->delete($_GET['id'] ?? 0);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_selesai");
     exit;
 }
 
@@ -31,14 +37,19 @@ $exportQuery = http_build_query([
     'search' => $search,
     'vehicle_id' => $vehicleFilter,
     'date_start' => $dateStart,
-    'date_end' => $dateEnd
+    'date_end' => $dateEnd,
+    'status' => 'selesai'
 ]);
 
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
-$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd);
+$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd, 'selesai', 'tgl_selesai');
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 $mekanikOptions = $model->getMekanikOptions();
+$scheduleSource = null;
+if ($action === 'schedule') {
+    $scheduleSource = $model->getById((int)($_GET['id'] ?? 0));
+}
 
 include 'core/header.php';
 ?>
@@ -64,8 +75,8 @@ include 'core/header.php';
 
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Data Riwayat Service</h5>
-    <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
+    <h5 class="mb-0">Data Service Selesai</h5>
+    <a href="index.php?page=service_selesai&action=create" class="btn bg-gradient-success btn-sm">
       <i class="fas fa-plus me-1"></i> Tambah Riwayat
     </a>
   </div>
@@ -90,7 +101,7 @@ include 'core/header.php';
 
       <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
         <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
-          <input type="hidden" name="page" value="riwayat">
+          <input type="hidden" name="page" value="service_selesai">
           <?php if ($vehicleFilter !== ''): ?>
             <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
           <?php endif; ?>
@@ -130,14 +141,14 @@ include 'core/header.php';
         <?php foreach ($data as $row): ?>
           <tr>
             <td><?= (int)$row['id'] ?></td>
-            <td><?= !empty($row['tanggal']) ? htmlspecialchars($row['tanggal']) : '-' ?></td>
+            <td><?= !empty($row['tanggal']) ? htmlspecialchars($row['tgl_selesai']) : '-' ?></td>
             <td><span class="badge bg-gradient-dark"><?= htmlspecialchars($row['nopol']) ?></span></td>
             <td><?= !empty($row['driver_nm']) ? htmlspecialchars($row['driver_nm']) : '?' ?></td>
             <td>
               <?php
                 $statusValue = strtolower((string)($row['status'] ?? ''));
                 $statusBadgeClass = 'bg-gradient-secondary';
-                if ($statusValue === 'pending') {
+                if ($statusValue === 'mengunggu') {
                     $statusBadgeClass = 'bg-gradient-warning';
                 } elseif ($statusValue === 'sedang dikerjakan') {
                     $statusBadgeClass = 'bg-gradient-primary';
@@ -163,10 +174,10 @@ include 'core/header.php';
               <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
                 <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
-              <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
+              <a href="index.php?page=service_selesai&action=schedule&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning" title="Jadwalkan Service Berikutnya">
                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
-              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
+              <a href="index.php?page=service_selesai&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
                 <i class="fa-solid fa-delete-left"></i>
               </a>
             </td>
@@ -183,6 +194,97 @@ include 'core/header.php';
   </div>
 </div>
 
+<?php if ($action === 'schedule' && $scheduleSource): ?>
+<div class="riwayat-overlay">
+  <div class="card shadow-lg border-0 riwayat-overlay-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Jadwalkan Service Berikutnya</h5>
+      <a href="index.php?page=service_selesai" class="btn btn-sm btn-outline-secondary">Tutup</a>
+    </div>
+
+    <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
+      <form method="POST" action="index.php?page=service_selesai&action=schedule_create">
+        <input type="hidden" name="nopol" value="<?= htmlspecialchars((string)$scheduleSource['nopol']) ?>">
+        <input type="hidden" name="driver_nm" value="<?= htmlspecialchars((string)($scheduleSource['driver_nm'] ?? '')) ?>">
+        <input type="hidden" name="total_km" value="<?= (int)($scheduleSource['total_km'] ?? 0) ?>">
+        <input type="hidden" name="last_km_service" value="<?= (int)($scheduleSource['last_km_service'] ?? 0) ?>">
+        <input type="hidden" name="status" value="jadwal">
+        <input type="hidden" name="kategori" value="normal">
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label>No Polisi</label>
+            <input type="text" class="form-control" value="<?= htmlspecialchars((string)$scheduleSource['nopol']) ?>" readonly>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>Tanggal Service Berikutnya</label>
+            <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
+          </div>
+
+          <div class="col-md-12 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="mb-0">Item Service (itemlist)</label>
+              <button type="button" id="scheduleAddItemBtn" class="btn btn-sm btn-outline-primary">+ Tambah Item</button>
+            </div>
+
+            <div id="scheduleItemWrapper">
+              <div class="schedule-item border rounded p-2 mb-2">
+                <div class="row">
+                  <div class="col-md-5 mb-2">
+                    <label>Barang</label>
+                    <select name="id_barang[]" class="form-control schedule-barang-select" required>
+                      <option value="">Pilih Item</option>
+                      <?php foreach ($inventoriOptions as $barang): ?>
+                        <option
+                          value="<?= (int)$barang['id'] ?>"
+                          data-harga="<?= (float)$barang['harga_satuan'] ?>"
+                        >
+                          <?= htmlspecialchars($barang['nama']) ?> (stok: <?= (int)$barang['stok'] ?>)
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+
+                  <div class="col-md-3 mb-2">
+                    <label>Jumlah</label>
+                    <input type="number" min="1" name="jumlah[]" class="form-control schedule-jumlah-input" value="1" required>
+                  </div>
+
+                  <div class="col-md-3 mb-2">
+                    <label>Harga Satuan</label>
+                    <input type="number" min="0" name="harga_satuan[]" class="form-control schedule-harga-input" value="0" readonly>
+                  </div>
+
+                  <div class="col-md-1 d-flex align-items-end mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-danger schedule-remove-item">Hapus</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-12 mb-3">
+            <label>Total Estimasi</label>
+            <input type="text" id="scheduleTotalPreview" class="form-control" value="Rp 0" readonly>
+          </div>
+
+          <div class="col-md-12 mb-3">
+            <label>Keterangan</label>
+            <textarea name="keterangan" class="form-control" rows="3" placeholder="Catatan jadwal service..."></textarea>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <a href="index.php?page=service_selesai" class="btn btn-outline-secondary">Kembali</a>
+          <button type="submit" class="btn bg-gradient-primary">Simpan Jadwal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php
 if ($action === 'create' || $action === 'edit'):
     $dataEdit = [
@@ -190,7 +292,7 @@ if ($action === 'create' || $action === 'edit'):
         'driver_nm' => '',
         'total_km' => '',
         'last_km_service' => '',
-        'status' => 'mengunggu',
+        'status' => 'jadwal',
         'kategori' => 'normal',
         'keterangan' => '',
         'items' => []
@@ -221,12 +323,12 @@ if ($action === 'create' || $action === 'edit'):
 <div class="riwayat-overlay">
   <div class="card shadow-lg border-0 riwayat-overlay-card">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <h5><?= $action === 'create' ? 'Tambah Riwayat Service' : 'Edit Riwayat Service' ?></h5>
-      <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary">Tutup</a>
+      <h5><?= $action === 'create' ? 'Tambah Riwayat Service' : 'Jadwalkan Service Berikutnya' ?></h5>
+      <a href="index.php?page=service_selesai" class="btn btn-sm btn-outline-secondary">Tutup</a>
     </div>
 
     <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
-      <form method="POST" action="index.php?page=riwayat&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
+      <form method="POST" action="index.php?page=service_selesai&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
         <div class="row">
           <div class="col-md-6 mb-3">
             <label>No Polisi</label>
@@ -246,8 +348,6 @@ if ($action === 'create' || $action === 'edit'):
             </select>
           </div>
 
-
-
           <div class="col-md-6 mb-3">
             <label>Driver</label>
             <input type="text" id="driverInput" name="driver_nm" class="form-control" value="<?= htmlspecialchars($dataEdit['driver_nm']) ?>" readonly>
@@ -266,10 +366,7 @@ if ($action === 'create' || $action === 'edit'):
           <div class="col-md-6 mb-3">
             <label>Status</label>
             <select name="status" class="form-control" required>
-              <option value="pending" <?= strtolower((string)$dataEdit['status']) === 'pending' ? 'selected' : '' ?>>Pending</option>
-              <option value="sedang dikerjakan" <?= strtolower((string)$dataEdit['status']) === 'sedang dikerjakan' ? 'selected' : '' ?>>Sedang Dikerjakan</option>
-              <option value="siap operasi" <?= strtolower((string)$dataEdit['status']) === 'siap operasi' ? 'selected' : '' ?>>Siap Operasi</option>
-              <option value="selesai" <?= strtolower((string)$dataEdit['status']) === 'selesai' ? 'selected' : '' ?>>Selesai</option>
+              <option value="jadwal" <?= strtolower((string)$dataEdit['status']) === 'jadwal' ? 'selected' : '' ?>>Jadwal</option>
             </select>
           </div>
 
@@ -360,7 +457,7 @@ if ($action === 'create' || $action === 'edit'):
         </div>
 
         <div class="d-flex justify-content-between">
-          <a href="index.php?page=riwayat" class="btn btn-outline-secondary">Kembali</a>
+          <a href="index.php?page=service_selesai" class="btn btn-outline-secondary">Kembali</a>
           <button type="submit" class="btn bg-gradient-primary"><?= $action === 'create' ? 'Simpan Riwayat' : 'Update Riwayat' ?></button>
         </div>
       </form>
@@ -392,7 +489,6 @@ if ($action === 'create' || $action === 'edit'):
         <div class="col-md-4 mb-3"><label class="text-muted">Total KM</label><p id="detail_total_km">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Last KM Service</label><p id="detail_last_km_service">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Masa Pakai</label><p id="detail_masa_pakai_km">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Menunggu</label><p id="detail_tgl_menunngu">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Sedang Dikerjakan</label><p id="detail_tgl_sedang_dikerjakan">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Siap Operasi</label><p id="detail_tgl_siap_operasi">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Selesai</label><p id="detail_tgl_selesai">-</p></div>
@@ -420,7 +516,6 @@ function showDetailModal(rowData) {
   document.getElementById('detail_driver_nm').textContent = formatValue(rowData.driver_nm);
   document.getElementById('detail_status').textContent = formatValue(rowData.status);
   document.getElementById('detail_kategori').textContent = formatValue(rowData.kategori);
-  document.getElementById('detail_tgl_menunngu').textContent = formatValue(rowData.tgl_menunngu ?? rowData.tgl_menunggu, '-');
   document.getElementById('detail_tgl_sedang_dikerjakan').textContent = formatValue(rowData.tgl_sedang_dikerjakan, '-');
   document.getElementById('detail_tgl_siap_operasi').textContent = formatValue(rowData.tgl_siap_operasi, '-');
   document.getElementById('detail_tgl_selesai').textContent = formatValue(rowData.tgl_selesai, '-');
@@ -613,6 +708,74 @@ function bindBatchBarangUI() {
 }
 
 bindBatchBarangUI();
+
+function bindScheduleItemUI() {
+  const wrapper = document.getElementById('scheduleItemWrapper');
+  const addBtn = document.getElementById('scheduleAddItemBtn');
+  const totalPreview = document.getElementById('scheduleTotalPreview');
+  if (!wrapper || !addBtn) return;
+
+  const getHarga = (selectEl) => {
+    if (!selectEl || !selectEl.value) return 0;
+    const selected = selectEl.options[selectEl.selectedIndex];
+    return Number(selected?.dataset?.harga || 0);
+  };
+
+  const recalculate = () => {
+    const items = wrapper.querySelectorAll('.schedule-item');
+    let total = 0;
+    items.forEach((itemEl) => {
+      const selectEl = itemEl.querySelector('.schedule-barang-select');
+      const jumlahEl = itemEl.querySelector('.schedule-jumlah-input');
+      const hargaEl = itemEl.querySelector('.schedule-harga-input');
+      const harga = getHarga(selectEl);
+      const jumlah = Number(jumlahEl?.value || 0);
+      if (hargaEl) hargaEl.value = harga;
+      total += harga * jumlah;
+    });
+    if (totalPreview) totalPreview.value = 'Rp ' + total.toLocaleString('id-ID');
+  };
+
+  addBtn.addEventListener('click', () => {
+    const firstItem = wrapper.querySelector('.schedule-item');
+    if (!firstItem) return;
+    const clone = firstItem.cloneNode(true);
+    clone.querySelectorAll('select').forEach((el) => { el.selectedIndex = 0; });
+    clone.querySelectorAll('input').forEach((el) => { el.value = el.classList.contains('schedule-jumlah-input') ? '1' : '0'; });
+    wrapper.appendChild(clone);
+    recalculate();
+  });
+
+  wrapper.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.schedule-remove-item');
+    if (!removeBtn) return;
+    const item = removeBtn.closest('.schedule-item');
+    const totalItems = wrapper.querySelectorAll('.schedule-item').length;
+    if (totalItems <= 1) {
+      item.querySelectorAll('select').forEach((el) => { el.selectedIndex = 0; });
+      item.querySelectorAll('input').forEach((el) => { el.value = el.classList.contains('schedule-jumlah-input') ? '1' : '0'; });
+    } else {
+      item.remove();
+    }
+    recalculate();
+  });
+
+  wrapper.addEventListener('change', (e) => {
+    if (e.target.classList.contains('schedule-barang-select')) {
+      recalculate();
+    }
+  });
+
+  wrapper.addEventListener('input', (e) => {
+    if (e.target.classList.contains('schedule-jumlah-input')) {
+      recalculate();
+    }
+  });
+
+  recalculate();
+}
+
+bindScheduleItemUI();
 </script>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
@@ -636,6 +799,8 @@ $(document).ready(function() {
   }
 });
 </script>
+
+
 
 <?php
 include 'core/footer.php';

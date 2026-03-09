@@ -7,19 +7,25 @@ $action = $_GET['action'] ?? null;
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->create($_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_pending");
     exit;
 }
 
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->update($_GET['id'] ?? 0, $_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_pending");
     exit;
 }
 
 if ($action === 'delete') {
     $model->delete($_GET['id'] ?? 0);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=service_pending");
+    exit;
+}
+
+if ($action === 'start_process') {
+    $model->updateStatusToSedangDikerjakan($_GET['id'] ?? 0);
+    header("Location: index.php?page=service_pending");
     exit;
 }
 
@@ -31,11 +37,12 @@ $exportQuery = http_build_query([
     'search' => $search,
     'vehicle_id' => $vehicleFilter,
     'date_start' => $dateStart,
-    'date_end' => $dateEnd
+    'date_end' => $dateEnd,
+    'status' => 'pending'
 ]);
 
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
-$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd);
+$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd, 'pending');
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 $mekanikOptions = $model->getMekanikOptions();
@@ -65,7 +72,7 @@ include 'core/header.php';
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Data Riwayat Service</h5>
-    <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
+    <a href="index.php?page=service_pending&action=create" class="btn bg-gradient-success btn-sm">
       <i class="fas fa-plus me-1"></i> Tambah Riwayat
     </a>
   </div>
@@ -75,7 +82,7 @@ include 'core/header.php';
       <?php if (!empty($vehicleFilter)): ?>
         <div class="alert alert-info mb-3">
           Menampilkan riwayat untuk vehicle <strong><?= htmlspecialchars($vehicleFilter) ?></strong>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=service_pending" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
@@ -84,13 +91,13 @@ include 'core/header.php';
           Menampilkan riwayat
           <?php if ($dateStart !== ''): ?>dari <strong><?= htmlspecialchars($dateStart) ?></strong><?php endif; ?>
           <?php if ($dateEnd !== ''): ?> sampai <strong><?= htmlspecialchars($dateEnd) ?></strong><?php endif; ?>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=service_pending" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
       <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
         <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
-          <input type="hidden" name="page" value="riwayat">
+          <input type="hidden" name="page" value="service_pending">
           <?php if ($vehicleFilter !== ''): ?>
             <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
           <?php endif; ?>
@@ -160,13 +167,19 @@ include 'core/header.php';
             <td><?= (int)($row['total_qty'] ?? 0) ?></td>
             <td>Rp <?= number_format((float)($row['total_harga'] ?? 0), 0, ',', '.') ?></td>
             <td class="text-end">
+              <a href="index.php?page=service_pending&action=start_process&id=<?= (int)$row['id'] ?>"
+                 class="btn btn-outline-primary"
+                 onclick="return confirm('Ubah status menjadi Sedang Dikerjakan?')"
+                 title="Proses">
+                <i class="fas fa-play"></i>
+              </a>
               <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
                 <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
-              <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
+              <a href="index.php?page=service_pending&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
-              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
+              <a href="index.php?page=service_pending&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus service?')">
                 <i class="fa-solid fa-delete-left"></i>
               </a>
             </td>
@@ -222,11 +235,11 @@ if ($action === 'create' || $action === 'edit'):
   <div class="card shadow-lg border-0 riwayat-overlay-card">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5><?= $action === 'create' ? 'Tambah Riwayat Service' : 'Edit Riwayat Service' ?></h5>
-      <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary">Tutup</a>
+      <a href="index.php?page=service_pending" class="btn btn-sm btn-outline-secondary">Tutup</a>
     </div>
 
     <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
-      <form method="POST" action="index.php?page=riwayat&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
+      <form method="POST" action="index.php?page=service_pending&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
         <div class="row">
           <div class="col-md-6 mb-3">
             <label>No Polisi</label>
@@ -360,7 +373,7 @@ if ($action === 'create' || $action === 'edit'):
         </div>
 
         <div class="d-flex justify-content-between">
-          <a href="index.php?page=riwayat" class="btn btn-outline-secondary">Kembali</a>
+          <a href="index.php?page=service_pending" class="btn btn-outline-secondary">Kembali</a>
           <button type="submit" class="btn bg-gradient-primary"><?= $action === 'create' ? 'Simpan Riwayat' : 'Update Riwayat' ?></button>
         </div>
       </form>
@@ -392,7 +405,6 @@ if ($action === 'create' || $action === 'edit'):
         <div class="col-md-4 mb-3"><label class="text-muted">Total KM</label><p id="detail_total_km">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Last KM Service</label><p id="detail_last_km_service">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Masa Pakai</label><p id="detail_masa_pakai_km">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Menunggu</label><p id="detail_tgl_menunngu">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Sedang Dikerjakan</label><p id="detail_tgl_sedang_dikerjakan">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Siap Operasi</label><p id="detail_tgl_siap_operasi">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Selesai</label><p id="detail_tgl_selesai">-</p></div>
@@ -420,7 +432,6 @@ function showDetailModal(rowData) {
   document.getElementById('detail_driver_nm').textContent = formatValue(rowData.driver_nm);
   document.getElementById('detail_status').textContent = formatValue(rowData.status);
   document.getElementById('detail_kategori').textContent = formatValue(rowData.kategori);
-  document.getElementById('detail_tgl_menunngu').textContent = formatValue(rowData.tgl_menunngu ?? rowData.tgl_menunggu, '-');
   document.getElementById('detail_tgl_sedang_dikerjakan').textContent = formatValue(rowData.tgl_sedang_dikerjakan, '-');
   document.getElementById('detail_tgl_siap_operasi').textContent = formatValue(rowData.tgl_siap_operasi, '-');
   document.getElementById('detail_tgl_selesai').textContent = formatValue(rowData.tgl_selesai, '-');

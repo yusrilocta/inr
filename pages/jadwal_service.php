@@ -7,19 +7,19 @@ $action = $_GET['action'] ?? null;
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->create($_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=jadwal_service");
     exit;
 }
 
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $model->update($_GET['id'] ?? 0, $_POST);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=jadwal_service");
     exit;
 }
 
 if ($action === 'delete') {
     $model->delete($_GET['id'] ?? 0);
-    header("Location: index.php?page=riwayat");
+    header("Location: index.php?page=jadwal_service");
     exit;
 }
 
@@ -31,11 +31,12 @@ $exportQuery = http_build_query([
     'search' => $search,
     'vehicle_id' => $vehicleFilter,
     'date_start' => $dateStart,
-    'date_end' => $dateEnd
+    'date_end' => $dateEnd,
+    'status' => 'jadwal'
 ]);
 
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
-$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd);
+$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd, 'jadwal');
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 $mekanikOptions = $model->getMekanikOptions();
@@ -64,10 +65,10 @@ include 'core/header.php';
 
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Data Riwayat Service</h5>
-    <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
-      <i class="fas fa-plus me-1"></i> Tambah Riwayat
-    </a>
+    <h5 class="mb-0">Data Jadwal Service</h5>
+    <!-- <a href="index.php?page=jadwal_service&action=create" class="btn bg-gradient-success btn-sm">
+      <i class="fas fa-plus me-1"></i> Tambah Jadwal
+    </a> -->
   </div>
 
   <div class="card-body px-0 pt-3 pb-2">
@@ -75,7 +76,7 @@ include 'core/header.php';
       <?php if (!empty($vehicleFilter)): ?>
         <div class="alert alert-info mb-3">
           Menampilkan riwayat untuk vehicle <strong><?= htmlspecialchars($vehicleFilter) ?></strong>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=jadwal_service" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
@@ -84,19 +85,19 @@ include 'core/header.php';
           Menampilkan riwayat
           <?php if ($dateStart !== ''): ?>dari <strong><?= htmlspecialchars($dateStart) ?></strong><?php endif; ?>
           <?php if ($dateEnd !== ''): ?> sampai <strong><?= htmlspecialchars($dateEnd) ?></strong><?php endif; ?>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=jadwal_service" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
       <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
         <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
-          <input type="hidden" name="page" value="riwayat">
+          <input type="hidden" name="page" value="jadwal_service">
           <?php if ($vehicleFilter !== ''): ?>
             <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
           <?php endif; ?>
           <input type="date" name="date_start" class="form-control" value="<?= htmlspecialchars($dateStart) ?>" style="min-width:170px;">
           <input type="date" name="date_end" class="form-control" value="<?= htmlspecialchars($dateEnd) ?>" style="min-width:170px;">
-          <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari No Polisi..." value="<?= htmlspecialchars($search) ?>" style="min-width:260px;">
+          <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari riwayat service..." value="<?= htmlspecialchars($search) ?>" style="min-width:260px;">
           <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
         </form>
 
@@ -117,10 +118,8 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">ID</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Tanggal</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">No Pol</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Driver</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Status</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Kategori</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Masa Pakai</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Item Service</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Qty</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Total</th>
             <th class="text-end text-secondary">Aksi</th>
@@ -132,12 +131,11 @@ include 'core/header.php';
             <td><?= (int)$row['id'] ?></td>
             <td><?= !empty($row['tanggal']) ? htmlspecialchars($row['tanggal']) : '-' ?></td>
             <td><span class="badge bg-gradient-dark"><?= htmlspecialchars($row['nopol']) ?></span></td>
-            <td><?= !empty($row['driver_nm']) ? htmlspecialchars($row['driver_nm']) : '?' ?></td>
             <td>
               <?php
                 $statusValue = strtolower((string)($row['status'] ?? ''));
                 $statusBadgeClass = 'bg-gradient-secondary';
-                if ($statusValue === 'pending') {
+                if ($statusValue === 'mengunggu') {
                     $statusBadgeClass = 'bg-gradient-warning';
                 } elseif ($statusValue === 'sedang dikerjakan') {
                     $statusBadgeClass = 'bg-gradient-primary';
@@ -151,22 +149,17 @@ include 'core/header.php';
                 <?= htmlspecialchars($row['status']) ?>
               </span>
             </td>
-            <td>
-              <span class="badge <?= $row['kategori'] === 'normal' ? 'bg-gradient-success' : 'bg-gradient-warning' ?>">
-                <?= htmlspecialchars($row['kategori']) ?>
-              </span>
-            </td>
-            <td><?= (int)$row['masa_pakai_km'] ?> KM</td>
+            <td><?= !empty($row['item_summary']) ? htmlspecialchars($row['item_summary']) : '-' ?></td>
             <td><?= (int)($row['total_qty'] ?? 0) ?></td>
             <td>Rp <?= number_format((float)($row['total_harga'] ?? 0), 0, ',', '.') ?></td>
             <td class="text-end">
               <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
                 <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
               </button>
-              <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
+              <a href="index.php?page=jadwal_service&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
-              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
+              <a href="index.php?page=jadwal_service&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
                 <i class="fa-solid fa-delete-left"></i>
               </a>
             </td>
@@ -186,11 +179,13 @@ include 'core/header.php';
 <?php
 if ($action === 'create' || $action === 'edit'):
     $dataEdit = [
+        'vehicle_id' => '',
         'nopol' => '',
         'driver_nm' => '',
+        'tanggal' => date('Y-m-d'),
         'total_km' => '',
         'last_km_service' => '',
-        'status' => 'mengunggu',
+        'status' => 'jadwal',
         'kategori' => 'normal',
         'keterangan' => '',
         'items' => []
@@ -221,32 +216,36 @@ if ($action === 'create' || $action === 'edit'):
 <div class="riwayat-overlay">
   <div class="card shadow-lg border-0 riwayat-overlay-card">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <h5><?= $action === 'create' ? 'Tambah Riwayat Service' : 'Edit Riwayat Service' ?></h5>
-      <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary">Tutup</a>
+      <h5><?= $action === 'create' ? 'Tambah Jadwal Service' : 'Edit Jadwal Service' ?></h5>
+      <a href="index.php?page=jadwal_service" class="btn btn-sm btn-outline-secondary">Tutup</a>
     </div>
 
     <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
-      <form method="POST" action="index.php?page=riwayat&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
+      <form method="POST" action="index.php?page=jadwal_service&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
         <div class="row">
           <div class="col-md-6 mb-3">
-            <label>No Polisi</label>
-            <select id="nopolSelect" name="nopol" class="form-control" required>
-              <option value="">Pilih No Polisi</option>
+            <label>Vehicle</label>
+            <select id="vehicleSelect" name="nopol" class="form-control" required>
+              <option value="">Pilih Vehicle</option>
               <?php foreach ($vehicleOptions as $vehicle): ?>
                 <option
                   value="<?= htmlspecialchars($vehicle['nopol']) ?>"
+                  data-nopol="<?= htmlspecialchars($vehicle['nopol']) ?>"
                   data-driver="<?= htmlspecialchars($vehicle['driver_nm']) ?>"
                   data-total-km="<?= (int)$vehicle['total_km'] ?>"
                   data-last-km-service="<?= (int)$vehicle['last_km_service'] ?>"
                   <?= $dataEdit['nopol'] == $vehicle['nopol'] ? 'selected' : '' ?>
                 >
-                  <?= htmlspecialchars($vehicle['nopol']) ?>
+                  <?= htmlspecialchars($vehicle['nopol']) ?> - <?= htmlspecialchars($vehicle['driver_nm']) ?>
                 </option>
               <?php endforeach; ?>
             </select>
           </div>
 
-
+          <div class="col-md-6 mb-3">
+            <label>No Polisi</label>
+            <input type="text" id="nopolInput" name="nopol" class="form-control" value="<?= htmlspecialchars($dataEdit['nopol']) ?>" readonly required>
+          </div>
 
           <div class="col-md-6 mb-3">
             <label>Driver</label>
@@ -264,12 +263,13 @@ if ($action === 'create' || $action === 'edit'):
           </div>
 
           <div class="col-md-6 mb-3">
+            <label>Tanggal Jadwal</label>
+            <input type="date" name="tanggal" class="form-control" value="<?= htmlspecialchars((string)($dataEdit['tanggal'] ?? date('Y-m-d'))) ?>" required>
+          </div>
+
+          <div class="col-md-6 mb-3">
             <label>Status</label>
-            <select name="status" class="form-control" required>
-              <option value="pending" <?= strtolower((string)$dataEdit['status']) === 'pending' ? 'selected' : '' ?>>Pending</option>
-              <option value="sedang dikerjakan" <?= strtolower((string)$dataEdit['status']) === 'sedang dikerjakan' ? 'selected' : '' ?>>Sedang Dikerjakan</option>
-              <option value="siap operasi" <?= strtolower((string)$dataEdit['status']) === 'siap operasi' ? 'selected' : '' ?>>Siap Operasi</option>
-              <option value="selesai" <?= strtolower((string)$dataEdit['status']) === 'selesai' ? 'selected' : '' ?>>Selesai</option>
+            <select name="status" class="form-control" required><option value="pending" <?= strtolower((string)$dataEdit['status']) === 'pending' ? 'selected' : '' ?>>Pending</option>
             </select>
           </div>
 
@@ -360,8 +360,8 @@ if ($action === 'create' || $action === 'edit'):
         </div>
 
         <div class="d-flex justify-content-between">
-          <a href="index.php?page=riwayat" class="btn btn-outline-secondary">Kembali</a>
-          <button type="submit" class="btn bg-gradient-primary"><?= $action === 'create' ? 'Simpan Riwayat' : 'Update Riwayat' ?></button>
+          <a href="index.php?page=jadwal_service" class="btn btn-outline-secondary">Kembali</a>
+          <button type="submit" class="btn bg-gradient-primary"><?= $action === 'create' ? 'Simpan Jadwal' : 'Update Jadwal' ?></button>
         </div>
       </form>
     </div>
@@ -383,7 +383,7 @@ if ($action === 'create' || $action === 'edit'):
     <div class="card-body" style="max-height:70vh; overflow-y:auto;">
       <div class="row">
         <div class="col-md-4 mb-3"><label class="text-muted">ID</label><p id="detail_id" class="fw-bold">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tanggal Dibuat</label><p id="detail_tanggal">-</p></div>
+        <div class="col-md-4 mb-3"><label class="text-muted">Tanggal</label><p id="detail_tanggal">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Vehicle ID</label><p id="detail_vehicle_id">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">No. Pol</label><p id="detail_nopol">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Driver</label><p id="detail_driver_nm">-</p></div>
@@ -392,10 +392,6 @@ if ($action === 'create' || $action === 'edit'):
         <div class="col-md-4 mb-3"><label class="text-muted">Total KM</label><p id="detail_total_km">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Last KM Service</label><p id="detail_last_km_service">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Masa Pakai</label><p id="detail_masa_pakai_km">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Menunggu</label><p id="detail_tgl_menunngu">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Sedang Dikerjakan</label><p id="detail_tgl_sedang_dikerjakan">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Siap Operasi</label><p id="detail_tgl_siap_operasi">-</p></div>
-        <div class="col-md-4 mb-3"><label class="text-muted">Tgl Selesai</label><p id="detail_tgl_selesai">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Total Qty Item</label><p id="detail_total_qty">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Total Harga</label><p id="detail_total_harga">-</p></div>
         <div class="col-md-12 mb-3"><label class="text-muted">Item Service</label><p id="detail_item_summary">-</p></div>
@@ -420,10 +416,6 @@ function showDetailModal(rowData) {
   document.getElementById('detail_driver_nm').textContent = formatValue(rowData.driver_nm);
   document.getElementById('detail_status').textContent = formatValue(rowData.status);
   document.getElementById('detail_kategori').textContent = formatValue(rowData.kategori);
-  document.getElementById('detail_tgl_menunngu').textContent = formatValue(rowData.tgl_menunngu ?? rowData.tgl_menunggu, '-');
-  document.getElementById('detail_tgl_sedang_dikerjakan').textContent = formatValue(rowData.tgl_sedang_dikerjakan, '-');
-  document.getElementById('detail_tgl_siap_operasi').textContent = formatValue(rowData.tgl_siap_operasi, '-');
-  document.getElementById('detail_tgl_selesai').textContent = formatValue(rowData.tgl_selesai, '-');
   document.getElementById('detail_total_km').textContent = formatValue(rowData.total_km, 0) + ' KM';
   document.getElementById('detail_last_km_service').textContent = formatValue(rowData.last_km_service, 0) + ' KM';
   document.getElementById('detail_masa_pakai_km').textContent = formatValue(rowData.masa_pakai_km, 0) + ' KM';
@@ -503,27 +495,35 @@ function renderInfo(totalData) {
 
 displayTable();
 
-const nopolSelect = document.getElementById('nopolSelect');
+const vehicleSelect = document.getElementById('vehicleSelect');
+const nopolInput = document.getElementById('nopolInput');
 const driverInput = document.getElementById('driverInput');
 const totalKmInput = document.getElementById('totalKmInput');
 const lastKmInput = document.getElementById('lastKmInput');
 
-if (nopolSelect) {
+if (vehicleSelect) {
   const updateVehicleInfo = () => {
-    const selected = nopolSelect.options[nopolSelect.selectedIndex];
+    const selected = vehicleSelect.options[vehicleSelect.selectedIndex];
     if (!selected || !selected.value) {
+      nopolInput.value = '';
       driverInput.value = '';
       totalKmInput.value = '';
       lastKmInput.value = '';
       return;
     }
 
+    nopolInput.value = selected.dataset.nopol || '';
     driverInput.value = selected.dataset.driver || '';
-    totalKmInput.value = selected.dataset.totalKm || 0;
-    lastKmInput.value = selected.dataset.lastKmService || 0;
+
+    if (!totalKmInput.value || totalKmInput.value === '0') {
+      totalKmInput.value = selected.dataset.totalKm || 0;
+    }
+    if (!lastKmInput.value || lastKmInput.value === '0') {
+      lastKmInput.value = selected.dataset.lastKmService || 0;
+    }
   };
 
-  nopolSelect.addEventListener('change', updateVehicleInfo);
+  vehicleSelect.addEventListener('change', updateVehicleInfo);
   updateVehicleInfo();
 }
 
@@ -620,18 +620,18 @@ bindBatchBarangUI();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-  var $nopol = $('#nopolSelect');
-  if ($nopol.length) {
-    $nopol.select2({
-      placeholder: 'Pilih No Polisi',
+  var $vehicle = $('#vehicleSelect');
+  if ($vehicle.length) {
+    $vehicle.select2({
+      placeholder: 'Pilih Vehicle',
       allowClear: true,
       width: '100%'
     });
 
-    $nopol.on('select2:select select2:clear', function () {
+    $vehicle.on('select2:select select2:clear', function () {
       var evt = document.createEvent('HTMLEvents');
       evt.initEvent('change', true, false);
-      $nopol[0].dispatchEvent(evt);
+      $vehicle[0].dispatchEvent(evt);
     });
   }
 });
