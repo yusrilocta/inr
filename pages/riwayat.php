@@ -137,7 +137,20 @@ include 'core/header.php';
             <td><span class="badge bg-gradient-dark"><?= htmlspecialchars($row['nopol']) ?></span></td>
             <td><?= !empty($row['driver_nm']) ? htmlspecialchars($row['driver_nm']) : '?' ?></td>
             <td>
-              <span class="badge <?= $row['status'] === 'perbaikan' ? 'bg-gradient-danger' : 'bg-gradient-info' ?>">
+              <?php
+                $statusValue = strtolower((string)($row['status'] ?? ''));
+                $statusBadgeClass = 'bg-gradient-secondary';
+                if ($statusValue === 'mengunggu') {
+                    $statusBadgeClass = 'bg-gradient-warning';
+                } elseif ($statusValue === 'sedang dikerjakan') {
+                    $statusBadgeClass = 'bg-gradient-primary';
+                } elseif ($statusValue === 'siap operasi') {
+                    $statusBadgeClass = 'bg-gradient-info';
+                } elseif ($statusValue === 'selesai') {
+                    $statusBadgeClass = 'bg-gradient-success';
+                }
+              ?>
+              <span class="badge <?= $statusBadgeClass ?>">
                 <?= htmlspecialchars($row['status']) ?>
               </span>
             </td>
@@ -182,7 +195,7 @@ if ($action === 'create' || $action === 'edit'):
         'driver_nm' => '',
         'total_km' => '',
         'last_km_service' => '',
-        'status' => 'claim',
+        'status' => 'mengunggu',
         'kategori' => 'normal',
         'keterangan' => '',
         'items' => []
@@ -262,9 +275,10 @@ if ($action === 'create' || $action === 'edit'):
           <div class="col-md-6 mb-3">
             <label>Status</label>
             <select name="status" class="form-control" required>
-              <option value="claim" <?= $dataEdit['status'] === 'claim' ? 'selected' : '' ?>>claim</option>
-              <option value="ganti" <?= $dataEdit['status'] === 'ganti' ? 'selected' : '' ?>>ganti</option>
-              <option value="perbaikan" <?= $dataEdit['status'] === 'perbaikan' ? 'selected' : '' ?>>perbaikan</option>
+              <option value="mengunggu" <?= strtolower((string)$dataEdit['status']) === 'mengunggu' ? 'selected' : '' ?>>Mengunggu</option>
+              <option value="sedang dikerjakan" <?= strtolower((string)$dataEdit['status']) === 'sedang dikerjakan' ? 'selected' : '' ?>>Sedang Dikerjakan</option>
+              <option value="siap operasi" <?= strtolower((string)$dataEdit['status']) === 'siap operasi' ? 'selected' : '' ?>>Siap Operasi</option>
+              <option value="selesai" <?= strtolower((string)$dataEdit['status']) === 'selesai' ? 'selected' : '' ?>>Selesai</option>
             </select>
           </div>
 
