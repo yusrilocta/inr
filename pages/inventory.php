@@ -27,7 +27,25 @@ if ($action == 'delete') {
     exit;
 }
 
-$data = $model->getAll();
+$search = trim($_GET['search'] ?? '');
+$stokFilter = trim($_GET['stok_filter'] ?? '');
+if (!in_array($stokFilter, ['aman', 'peringatan'], true)) {
+    $stokFilter = '';
+}
+$stokFilterLabel = $stokFilter === 'aman' ? 'Stok Aman' : ($stokFilter === 'peringatan' ? 'Peringatan Stok' : '');
+$kategoriOptions = $model->getKategoriSummary();
+$kategoriFilter = trim($_GET['kategori'] ?? '');
+$kategoriValues = array_column($kategoriOptions, 'kategori');
+if ($kategoriFilter !== '' && !in_array($kategoriFilter, $kategoriValues, true)) {
+    $kategoriFilter = '';
+}
+$exportQuery = http_build_query([
+    'search' => $search,
+    'stok_filter' => $stokFilter,
+    'kategori' => $kategoriFilter
+]);
+
+$data = $model->getAll($search, $stokFilter, $kategoriFilter);
 $stokMenipis = $model->getStokMenipis();
 
 include 'core/header.php';
@@ -55,13 +73,50 @@ include 'core/header.php';
         </div>
       <?php endif; ?>
 
-      <!-- SEARCH -->
-      <div class="row mb-3 px-3 justify-content-end">
-        <div class="col-md-4">
-          <input type="text" id="searchInput" 
-                 class="form-control" 
-                 placeholder="Cari barang...">
+      <?php if ($search !== '' || $stokFilter !== '' || $kategoriFilter !== ''): ?>
+        <div class="alert alert-info mb-3">
+          Menampilkan
+          <?php if ($search !== ''): ?>
+            pencarian <strong><?= htmlspecialchars($search) ?></strong>
+          <?php endif; ?>
+          <?php if ($stokFilter !== ''): ?>
+            <?= $search !== '' ? 'dan' : '' ?> filter <strong><?= htmlspecialchars($stokFilterLabel) ?></strong>
+          <?php endif; ?>
+          <?php if ($kategoriFilter !== ''): ?>
+            <?= ($search !== '' || $stokFilter !== '') ? 'dan' : '' ?> kategori <strong><?= htmlspecialchars($kategoriFilter) ?></strong>
+          <?php endif; ?>
+          <a href="index.php?page=inventory" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
+      <?php endif; ?>
+
+      <!-- SEARCH -->
+      <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
+        <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
+          <input type="hidden" name="page" value="inventory">
+          <select name="kategori" class="form-control" style="min-width:190px;">
+            <option value="">Semua Kategori</option>
+            <?php foreach ($kategoriOptions as $opt): ?>
+              <option value="<?= htmlspecialchars($opt['kategori']) ?>" <?= $kategoriFilter === $opt['kategori'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($opt['kategori']) ?> (<?= (int)$opt['total'] ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <select name="stok_filter" class="form-control" style="min-width:190px;">
+            <option value="">Semua Stok</option>
+            <option value="aman" <?= $stokFilter === 'aman' ? 'selected' : '' ?>>Stok Aman</option>
+            <option value="peringatan" <?= $stokFilter === 'peringatan' ? 'selected' : '' ?>>Peringatan Stok</option>
+          </select>
+          <input type="text" name="search" id="searchInput"
+                 class="form-control"
+                 placeholder="Cari barang..."
+                 value="<?= htmlspecialchars($search) ?>"
+                 style="min-width:260px;">
+          <button class="btn btn-outline-primary mt-3" type="submit"><i class="fas fa-search"></i></button>
+        </form>
+
+        <a href="index.php?page=inventory_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success mt-3" target="_blank">
+          <i class="fas fa-file-excel"></i> Export Excel
+        </a>
       </div>
 
       <table id="inventoryTable" class="table align-items-center mb-0">
@@ -70,7 +125,8 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Nama</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Kategori</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Stok</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Harga</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Harga</th>            
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder">Peringatan Stok</th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder">Masa Pakai</th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
@@ -89,18 +145,24 @@ include 'core/header.php';
 
             <td>
               <?php if($row['stok'] <= $row['peringatan_stok']): ?>
-                <span class="badge bg-gradient-danger">
+                <span class="badge bg-gradient-danger js-stok-badge"
+                      data-stok="<?= $row['stok'] ?>"
+                      data-peringatan="<?= $row['peringatan_stok'] ?>">
                   <?= $row['stok'] ?>
                 </span>
               <?php else: ?>
-                <span class="badge bg-gradient-success">
+                <span class="badge bg-gradient-success js-stok-badge"
+                      data-stok="<?= $row['stok'] ?>"
+                      data-peringatan="<?= $row['peringatan_stok'] ?>">
                   <?= $row['stok'] ?>
                 </span>
               <?php endif; ?>
             </td>
 
             <td>Rp <?= number_format($row['harga_satuan'],0,',','.') ?></td>
-
+             <td>
+              <?= $row['peringatan_stok'] ?>
+            </td>
             <td>
               <?= $row['masa_pakai'] ?> KM
             </td>
@@ -277,14 +339,21 @@ document.getElementById("nextBtn").addEventListener("click", function(){
   }
 });
 
-document.getElementById("searchInput").addEventListener("keyup", function(){
-  let value = this.value.toLowerCase();
-  rows.forEach(row => {
-    row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
-  });
-});
-
 displayTable();
+
+// Client-side warning icon when stock is below threshold
+document.querySelectorAll(".js-stok-badge").forEach((badge) => {
+  const stok = parseInt(badge.dataset.stok, 10);
+  const peringatan = parseInt(badge.dataset.peringatan, 10);
+  if (Number.isNaN(stok) || Number.isNaN(peringatan)) return;
+
+  if (stok < peringatan && !badge.nextElementSibling?.classList.contains("stok-warning-icon")) {
+    const icon = document.createElement("i");
+    icon.className = "fas fa-exclamation-triangle text-warning ms-1 stok-warning-icon";
+    icon.title = "Stok menipis";
+    badge.insertAdjacentElement("afterend", icon);
+  }
+});
 </script>
 
 <?php include 'core/footer.php'; ?>

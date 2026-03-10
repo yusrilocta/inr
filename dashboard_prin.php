@@ -1,29 +1,11 @@
 <?php
-require_once __DIR__ . '/../db/db.php';
-require_once __DIR__ . '/../model/DashboardModel.php';
+require_once __DIR__ . '/db/db.php';
+require_once __DIR__ . '/model/DashboardModel.php';
 
 $dashboardModel = new DashboardModel($conn);
-$totals = $dashboardModel->getSummary();
-$topSpareparts = $dashboardModel->getTopSparepartRiwayat(3);
 
 $dateStart = trim($_GET['date_start'] ?? '');
 $dateEnd = trim($_GET['date_end'] ?? '');
-
-function formatDateLabel($dateValue) {
-    if (!$dateValue) {
-        return '';
-    }
-    return date('d M Y', strtotime($dateValue));
-}
-
-$filterLabel = 'Semua tanggal';
-if ($dateStart && $dateEnd) {
-    $filterLabel = formatDateLabel($dateStart) . ' - ' . formatDateLabel($dateEnd);
-} elseif ($dateStart) {
-    $filterLabel = 'Mulai ' . formatDateLabel($dateStart);
-} elseif ($dateEnd) {
-    $filterLabel = 'Sampai ' . formatDateLabel($dateEnd);
-}
 
 $getcountchart = $dashboardModel->getCountChart($dateStart, $dateEnd);
 $chartJadwal = $dashboardModel->getCountChartByStatus('jadwal', $dateStart, $dateEnd);
@@ -33,7 +15,6 @@ $chartSelesai = $dashboardModel->getCountChartByStatus('selesai', $dateStart, $d
 
 $labels = [];
 $data = [];
-
 foreach ($getcountchart as $row) {
     $labels[] = date('d M Y', strtotime($row['tgl']));
     $data[] = (int)$row['total'];
@@ -54,179 +35,63 @@ function buildChartSeries($rows) {
 [$labelsSiap, $dataSiap] = buildChartSeries($chartSiap);
 [$labelsSelesai, $dataSelesai] = buildChartSeries($chartSelesai);
 
-include 'core/header.php';
+function formatDateLabel($dateValue) {
+    if (!$dateValue) {
+        return '';
+    }
+    return date('d M Y', strtotime($dateValue));
+}
+
+$filterLabel = 'Semua tanggal';
+if ($dateStart && $dateEnd) {
+    $filterLabel = formatDateLabel($dateStart) . ' - ' . formatDateLabel($dateEnd);
+} elseif ($dateStart) {
+    $filterLabel = 'Mulai ' . formatDateLabel($dateStart);
+} elseif ($dateEnd) {
+    $filterLabel = 'Sampai ' . formatDateLabel($dateEnd);
+}
+
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<div class="print-header">
-  <div class="print-header__title">Dashboard Service</div>
-  <div class="print-header__meta">Periode: <?= htmlspecialchars($filterLabel) ?></div>
-</div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="apple-touch-icon" sizes="76x76" href="assets/img/apple-icon.png">
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
 
-<div class="container-fluid py-4 mt-2">
-  <div class="row">
-    <!-- Count -->
-    <div class="col-lg-6 col-12">
-      <div class="row">
-        <div class="col-lg-6 col-md-6 col-12">
-          <div class="card">
-            <span class="mask bg-primary opacity-10 border-radius-lg"></span>
-            <div class="card-body p-3 position-relative">
-              <div class="row">
-                <div class="col-8 text-start">
-                  <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="fa-regular fa-id-card" style="color: rgb(0, 0, 0);"></i>
-                  </div>
-                  <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['drivers']) ?></h5>
-                  <span class="text-white text-sm">Total Driver</span>
-                </div>
-                <div class="col-4 d-flex align-items-end justify-content-end">
-                  <p class="text-white text-sm text-end font-weight-bolder mb-0">drivers</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-6 col-md-6 col-12 mt-4 mt-md-0">
-          <div class="card">
-            <span class="mask bg-dark opacity-10 border-radius-lg"></span>
-            <div class="card-body p-3 position-relative">
-              <div class="row">
-                <div class="col-8 text-start">
-                  <div class="bg-white shadow text-center icon icon-shape border-radius-2xl">
-                    <i class="fa-solid fa-truck-moving" style="color: rgb(0, 0, 0);"></i>
-                  </div>
-                  <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['vehicles']) ?></h5>
-                  <span class="text-white text-sm">Total Vehicle</span>
-                </div>
-                <div class="col-4 d-flex align-items-end justify-content-end">
-                  <div class="text-end">
-                    <p class="text-white text-sm text-end font-weight-bolder mb-0">vehicles</p>
-                    <p class="text-white text-xs mb-0">jadwal: <?= number_format($totals['riwayat_jadwal']) ?></p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="row mt-4">
-        <div class="col-lg-6 col-md-6 col-12">
-          <div class="card">
-            <span class="mask bg-info opacity-10 border-radius-lg"></span>
-            <div class="card-body p-3 position-relative">
-              <div class="row">
-                <div class="col-8 text-start">
-                  <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="fa-solid fa-boxes-stacked" style="color: rgb(0, 0, 0);"></i>
-                  </div>
-                  <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['inventory']) ?></h5>
-                  <span class="text-white text-sm">Total Inventory</span>
-                </div>
-                <div class="col-4 d-flex align-items-end justify-content-end">
-                  <div class="text-end">
-                    <p class="text-white text-sm text-end font-weight-bolder mb-0">inventori</p>
-                    <p class="text-white text-xs mb-0">peringatan: <?= number_format($totals['inventory_warning']) ?></p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-6 col-md-6 col-12 mt-4 mt-md-0">
-          <div class="card">
-            <span class="mask bg-success opacity-10 border-radius-lg"></span>
-            <div class="card-body p-3 position-relative">
-              <div class="row">
-                <div class="col-8 text-start">
-                  <div class="icon icon-shape bg-white shadow text-center border-radius-2xl">
-                    <i class="fa-solid fa-cart-flatbed" style="color: rgb(0, 0, 0);"></i>
-                  </div>
-                  <h5 class="text-white font-weight-bolder mb-0 mt-3"><?= number_format($totals['riwayat']) ?></h5>
-                  <span class="text-white text-sm">Total Riwayat</span>
-                </div>
-                <div class="col-4 d-flex align-items-end justify-content-end">
-                  <div class="text-end">
-                    <p class="text-white text-sm text-end font-weight-bolder mb-0">riwayat</p>
-                    <p class="text-white text-xs mb-0">selesai: <?= number_format($totals['riwayat_selesai']) ?></p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-6 col-12 mt-4 mt-lg-0">
-      <div class="card shadow h-100">
-        <div class="card-header pb-0 p-3">
-          <h6 class="mb-0">Top 3 Sparepart Di Riwayat Service</h6>
-        </div>
-        <div class="card-body p-3">
-          <?php if (count($topSpareparts) > 0): ?>
-            <ul class="list-group">
-              <?php foreach ($topSpareparts as $index => $item): ?>
-                <li class="list-group-item border-0 d-flex justify-content-between align-items-start px-0">
-                  <div>
-                    <div class="text-sm font-weight-bold text-dark">
-                      #<?= $index + 1 ?> <?= htmlspecialchars($item['nama']) ?>
-                    </div>
-                    <div class="text-xs text-secondary">
-                      <?= number_format((int)$item['total_transaksi']) ?> transaksi
-                    </div>
-                  </div>
-                  <span class="badge bg-gradient-primary">
-                    <?= number_format((int)$item['total_qty']) ?> pcs
-                  </span>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          <?php else: ?>
-            <p class="text-sm text-secondary mb-0">Belum ada data sparepart pada riwayat service.</p>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700,800" rel="stylesheet" />
+  <!-- Nucleo Icons -->
+  <link href="https://demos.creative-tim.com/soft-ui-dashboard/assets/css/nucleo-icons.css" rel="stylesheet" />
+  <link href="https://demos.creative-tim.com/soft-ui-dashboard/assets/css/nucleo-svg.css" rel="stylesheet" />
+  <!-- Font Awesome Icons -->
+  <script src="https://kit.fontawesome.com/4553990e8e.js" crossorigin="anonymous"></script>
+  <!-- CSS Files -->
+  <link id="pagestyle" href="assets/css/soft-ui-dashboard.css?v=1.1.0" rel="stylesheet" />
+  <!-- Nepcha Analytics (nepcha.com) -->
+  <!-- Nepcha is a easy-to-use web analytics. No cookies and fully compliant with GDPR, CCPA and PECR. -->
+  <script defer data-site="YOUR_DOMAIN_HERE" src="https://api.nepcha.com/js/nepcha-analytics.js"></script>
+</head>
+<body>
 <style>
 form input[type="date"]{
   min-width:180px;
 }
-.print-header{
-  display:none;
-  margin: 0 16px 12px;
-  padding: 8px 0 12px;
-  border-bottom: 1px solid #ddd;
-}
-.print-header__title{
-  font-size: 18px;
-  font-weight: 700;
-  color: #111;
-}
-.print-header__meta{
-  font-size: 12px;
-  color: #555;
-}
 @media print {
   .no-print {
-    display:none !important;
-  }
-  .print-header{
-    display:block;
+    display: none !important;
   }
   .card{
-    box-shadow:none !important;
+    box-shadow: none !important;
   }
   .chart{
     page-break-inside: avoid;
   }
 }
 </style>
-<div class="container-fluid pb-4">
+<div class="container-fluid pb-4" id="print_pdf">
   <div class="row">
     <div class="col-12">
       <div class="card shadow-sm">
@@ -257,9 +122,9 @@ form input[type="date"]{
       Reset
     </a>
 
-    <a class="btn btn-outline-dark" href="http://localhost/inr/dashboard_prin.php" target="_blank" rel="noopener">
-      <i class="fas fa-print"></i> Cetak data grafis
-    </a>
+    <button class="btn btn-outline-dark" type="button" id="btn-print-dashboard">
+      <i class="fas fa-print"></i> Print PDF
+    </button>
   </div>
 </form>
           <div class="chart" style="height: 300px;">
@@ -271,7 +136,7 @@ form input[type="date"]{
   </div>
 </div>
 
-<div class="container-fluid pb-4">
+<div class="container-fluid pb-4" id="print_pdf">
   <div class="row g-4">
     <div class="col-12 col-lg-6">
       <div class="card shadow-sm h-100">
@@ -483,8 +348,29 @@ window.addEventListener("load", function () {
   window.addEventListener("beforeprint", captureChartsForPrint);
   window.addEventListener("afterprint", restoreChartsAfterPrint);
 
+  var printBtn = document.getElementById("btn-print-dashboard");
+  if (printBtn) {
+    printBtn.addEventListener("click", function () {
+      captureChartsForPrint();
+      setTimeout(function () {
+        window.print();
+      }, 0);
+    });
+  }
 });
 </script>
-<?php
-include 'core/footer.php';
-?>
+
+  <!--   Core JS Files   -->
+  <script src="assets/js/core/popper.min.js"></script>
+  <script src="assets/js/core/bootstrap.min.js"></script>
+  <script src="assets/js/plugins/perfect-scrollbar.min.js"></script>
+  <script src="assets/js/plugins/smooth-scrollbar.min.js"></script>
+  <script src="assets/js/plugins/chartjs.min.js"></script>
+
+  <!-- Github buttons -->
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="assets/js/soft-ui-dashboard.min.js?v=1.1.0"></script>
+</body>
+
+</html>

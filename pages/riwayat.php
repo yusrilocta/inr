@@ -24,18 +24,21 @@ if ($action === 'delete') {
 }
 
 $search = trim($_GET['search'] ?? '');
-$vehicleFilter = trim($_GET['vehicle_id'] ?? '');
+$nopolFilter = trim($_GET['nopol'] ?? '');
+if ($nopolFilter === '') {
+    $nopolFilter = trim($_GET['vehicle_id'] ?? '');
+}
 $dateStart = trim($_GET['date_start'] ?? '');
 $dateEnd = trim($_GET['date_end'] ?? '');
 $exportQuery = http_build_query([
     'search' => $search,
-    'vehicle_id' => $vehicleFilter,
+    'nopol' => $nopolFilter,
     'date_start' => $dateStart,
     'date_end' => $dateEnd
 ]);
 
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
-$data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd);
+$data = $model->getParentList($search, $nopolFilter, $dateStart, $dateEnd);
 $vehicleOptions = $model->getVehicleOptions();
 $inventoriOptions = $model->getInventoriOptions();
 $mekanikOptions = $model->getMekanikOptions();
@@ -65,16 +68,16 @@ include 'core/header.php';
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Data Riwayat Service</h5>
-    <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
+    <!-- <a href="index.php?page=riwayat&action=create" class="btn bg-gradient-success btn-sm">
       <i class="fas fa-plus me-1"></i> Tambah Riwayat
-    </a>
+    </a> -->
   </div>
 
   <div class="card-body px-0 pt-3 pb-2">
     <div class="table-responsive p-3">
-      <?php if (!empty($vehicleFilter)): ?>
+      <?php if (!empty($nopolFilter)): ?>
         <div class="alert alert-info mb-3">
-          Menampilkan riwayat untuk vehicle <strong><?= htmlspecialchars($vehicleFilter) ?></strong>
+          Menampilkan riwayat untuk nopol <strong><?= htmlspecialchars($nopolFilter) ?></strong>
           <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
@@ -91,21 +94,21 @@ include 'core/header.php';
       <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
         <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
           <input type="hidden" name="page" value="riwayat">
-          <?php if ($vehicleFilter !== ''): ?>
-            <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
+          <?php if ($nopolFilter !== ''): ?>
+            <input type="hidden" name="nopol" value="<?= htmlspecialchars($nopolFilter) ?>">
           <?php endif; ?>
           <input type="date" name="date_start" class="form-control" value="<?= htmlspecialchars($dateStart) ?>" style="min-width:170px;">
           <input type="date" name="date_end" class="form-control" value="<?= htmlspecialchars($dateEnd) ?>" style="min-width:170px;">
           <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari No Polisi..." value="<?= htmlspecialchars($search) ?>" style="min-width:260px;">
-          <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
+          <button class="btn btn-outline-primary mt-3" type="submit"><i class="fas fa-search"></i></button>
         </form>
 
-        <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success" target="_blank">
+        <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success mt-3" target="_blank">
           <i class="fas fa-file-excel"></i> Export Excel
         </a>
 
         <?php if ($canPrintInvoice): ?>
-          <a href="index.php?page=riwayat_invoice&<?= $exportQuery ?>" class="btn btn-sm btn-outline-danger" target="_blank">
+          <a href="index.php?page=riwayat_invoice&<?= $exportQuery ?>" class="btn btn-sm btn-outline-danger mt-3" target="_blank">
             <i class="fas fa-file-pdf"></i> Cetak PDF
           </a>
         <?php endif; ?>
@@ -166,9 +169,9 @@ include 'core/header.php';
               <a href="index.php?page=riwayat&action=edit&id=<?= (int)$row['id'] ?>" class="btn btn-outline-warning">
                 <i class="fa-sharp-duotone fa-solid fa-file-pen"></i>
               </a>
-              <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
+              <!-- <a href="index.php?page=riwayat&action=delete&id=<?= (int)$row['id'] ?>" class="btn btn-outline-danger" onclick="return confirm('Yakin hapus riwayat service?')">
                 <i class="fa-solid fa-delete-left"></i>
-              </a>
+              </a> -->
             </td>
           </tr>
         <?php endforeach; ?>

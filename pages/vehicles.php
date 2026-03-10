@@ -27,7 +27,12 @@ if ($action == 'delete') {
     exit;
 }
 
-$data = $model->getAll();
+$search = trim($_GET['search'] ?? '');
+$exportQuery = http_build_query([
+    'search' => $search
+]);
+
+$data = $model->getAll($search);
 
 include 'core/header.php';
 ?>
@@ -78,13 +83,28 @@ include 'core/header.php';
   <div class="card-body px-0 pt-3 pb-2">
     <div class="table-responsive p-3">
 
-      <!-- SEARCH -->
-      <div class="row mb-3 px-3 justify-content-end">
-        <div class="col-md-4">
-          <input type="text" id="searchInput" 
-                 class="form-control" 
-                 placeholder="Cari vehicle...">
+      <?php if ($search !== ''): ?>
+        <div class="alert alert-info mb-3">
+          Menampilkan hasil pencarian untuk <strong><?= htmlspecialchars($search) ?></strong>
+          <a href="index.php?page=vehicles" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
+      <?php endif; ?>
+
+      <!-- SEARCH -->
+      <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
+        <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
+          <input type="hidden" name="page" value="vehicles">
+          <input type="text" name="search" id="searchInput"
+                 class="form-control"
+                 placeholder="Cari vehicle..."
+                 value="<?= htmlspecialchars($search) ?>"
+                 style="min-width:260px;">
+          <button class="btn btn-outline-primary mt-3" type="submit"><i class="fas fa-search"></i></button>
+        </form>
+
+        <a href="index.php?page=vehicles_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success mt-3" target="_blank">
+          <i class="fas fa-file-excel"></i> Export Excel
+        </a>
       </div>
 
       <table id="vehicleTable" class="table align-items-center mb-0">
@@ -94,7 +114,7 @@ include 'core/header.php';
             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">No pol <span class="sort-indicator">&lt;&gt;</span></th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Brand <span class="sort-indicator">&lt;&gt;</span></th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Model <span class="sort-indicator">&lt;&gt;</span></th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Type <span class="sort-indicator">&lt;&gt;</span></th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">No WA <span class="sort-indicator">&lt;&gt;</span></th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="text">Driver <span class="sort-indicator">&lt;&gt;</span></th>
             <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="number">Total KM <span class="sort-indicator">&lt;&gt;</span></th>
              <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort="date">Service Terakhir <span class="sort-indicator">&lt;&gt;</span></th>            
@@ -115,7 +135,7 @@ include 'core/header.php';
 
             <td><?= !empty($row['brand']) ? $row['brand'] : '?' ?></td>
             <td><?= !empty($row['model']) ? $row['model'] : '?' ?></td>
-            <td><?= !empty($row['type']) ? $row['type'] : '?' ?></td>
+            <td><?= !empty($row['phone_no']) ? $row['phone_no'] : '?' ?></td>
             <td><?= !empty($row['driver_nm']) ? $row['driver_nm'] : '?' ?></td>
             <td>
               <span class="badge bg-gradient-info">
@@ -141,7 +161,7 @@ include 'core/header.php';
               </a>
 
               <!-- diagnosa tombol menuju riwayat terfilter -->
-              <a href="index.php?page=riwayat&vehicle_id=<?= urlencode($row['vehicle_id']) ?>" 
+              <a href="index.php?page=riwayat&nopol=<?= urlencode($row['nopol']) ?>" 
                  class="btn btn-outline-secondary">
                  <i class="fa-solid fa-magnifying-glass-arrow-right"></i>
               </a>
@@ -165,12 +185,25 @@ include 'core/header.php';
 if ($action === 'create' || $action === 'edit'):
 
 $data_edit = [
+    'vehicle_id' => '',
+    'gps_sn' => '',
     'nopol' => '',
+    'type' => '',
     'brand' => '',
     'model' => '',
-    'type' => '',
+    'car_group' => '',
     'driver_nm' => '',
+    'remark' => '',
+    'engine_no' => '',
+    'total_km' => 0,
+    'engine_capacity' => 0,
+    'kir_no' => '',
+    'stnk_no' => '',
+    'bpkb_no' => '',
+    'chasis_no' => '',
+    'phone_no' => '',
     'year_production' => '',
+    'legal_date' => '',
     'last_service' => '',
     'last_km_service' => ''
 ];
@@ -194,6 +227,11 @@ if ($action === 'edit') {
   justify-content: center;
   padding: 1rem;
 }
+.vehicle-overlay-card {
+  height:80%;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
 </style>
 
 <div class="vehicle-overlay">
@@ -210,21 +248,22 @@ if ($action === 'edit') {
         <div class="row">
 
           <div class="col-md-6 mb-3">
+            <label>Vehicle ID</label>
+            <input type="text" name="vehicle_id" class="form-control"
+                   value="<?= $data_edit['vehicle_id'] ?>"
+                   <?= $action === 'edit' ? 'readonly' : '' ?>>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>GPS SN</label>
+            <input type="text" name="gps_sn" class="form-control"
+                   value="<?= $data_edit['gps_sn'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
             <label>Nopol</label>
             <input type="text" name="nopol" class="form-control"
                    value="<?= $data_edit['nopol'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label>Brand</label>
-            <input type="text" name="brand" class="form-control"
-                   value="<?= $data_edit['brand'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label>Model</label>
-            <input type="text" name="model" class="form-control"
-                   value="<?= $data_edit['model'] ?>">
           </div>
 
           <div class="col-md-6 mb-3">
@@ -234,17 +273,87 @@ if ($action === 'edit') {
           </div>
 
           <div class="col-md-6 mb-3">
+            <label>Model</label>
+            <input type="text" name="model" class="form-control"
+                   value="<?= $data_edit['model'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>Brand</label>
+            <input type="text" name="brand" class="form-control"
+                   value="<?= $data_edit['brand'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
             <label>Driver</label>
             <input type="text" name="driver_nm" class="form-control"
                    value="<?= $data_edit['driver_nm'] ?>">
           </div>
-          
-              <input type="text" name="total_km" class="form-control" value="<?= !isset($data_edit['total_km']) ? 0 : $data_edit['total_km'] ?>">
+
+          <div class="col-md-6 mb-3">
+            <label>Kelompok Kendaraan</label>
+            <input type="text" name="car_group" class="form-control"
+                   value="<?= $data_edit['car_group'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. HP</label>
+            <input type="text" name="phone_no" class="form-control"
+                   value="<?= $data_edit['phone_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. Engine</label>
+            <input type="text" name="engine_no" class="form-control"
+                   value="<?= $data_edit['engine_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>Kapasitas Engine</label>
+            <input type="number" name="engine_capacity" class="form-control"
+                   value="<?= $data_edit['engine_capacity'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. Chasis</label>
+            <input type="text" name="chasis_no" class="form-control"
+                   value="<?= $data_edit['chasis_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. KIR</label>
+            <input type="text" name="kir_no" class="form-control"
+                   value="<?= $data_edit['kir_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. STNK</label>
+            <input type="text" name="stnk_no" class="form-control"
+                   value="<?= $data_edit['stnk_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>No. BPKB</label>
+            <input type="text" name="bpkb_no" class="form-control"
+                   value="<?= $data_edit['bpkb_no'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>Total KM</label>
+            <input type="number" name="total_km" class="form-control"
+                   value="<?= $data_edit['total_km'] ?>">
+          </div>
 
           <div class="col-md-6 mb-3">
             <label>Tahun Produksi</label>
             <input type="text" name="year_production" class="form-control"
                    value="<?= $data_edit['year_production'] ?>">
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label>Tanggal Legal</label>
+            <input type="date" name="legal_date" class="form-control"
+                   value="<?= $data_edit['legal_date'] ?>">
           </div>
 
           <div class="col-md-6 mb-3">
@@ -257,6 +366,11 @@ if ($action === 'edit') {
             <label>KM Service Terakhir</label>
             <input type="number" name="last_km_service" class="form-control"
                    value="<?= $data_edit['last_km_service'] ?>">
+          </div>
+
+          <div class="col-md-12 mb-3">
+            <label>Catatan</label>
+            <textarea name="remark" class="form-control" rows="3"><?= $data_edit['remark'] ?></textarea>
           </div>
 
         </div>
@@ -480,16 +594,7 @@ function updateSortIndicators() {
 }
 
 function displayTable() {
-
-    const searchValue = document.getElementById("searchInput").value.toLowerCase();
-
-    rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(searchValue) ? "" : "none";
-    });
-
-    const visibleRows = rows.filter(row => row.style.display !== "none");
-
+    const visibleRows = rows;
     const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
     if(currentPage > totalPages) currentPage = totalPages || 1;
 
@@ -539,11 +644,6 @@ function renderInfo(totalData) {
     document.getElementById("dataInfo").innerHTML =
         `Menampilkan ${start} - ${end} dari ${totalData} data`;
 }
-
-document.getElementById("searchInput").addEventListener("keyup", function(){
-    currentPage = 1;
-    displayTable();
-});
 
 sortableHeaders.forEach((header, index) => {
     header.addEventListener("click", function() {

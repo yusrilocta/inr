@@ -76,9 +76,9 @@ include 'core/header.php';
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Data Service Selesai</h5>
-    <a href="index.php?page=service_selesai&action=create" class="btn bg-gradient-success btn-sm">
+    <!-- <a href="index.php?page=service_selesai&action=create" class="btn bg-gradient-success btn-sm">
       <i class="fas fa-plus me-1"></i> Tambah Riwayat
-    </a>
+    </a> -->
   </div>
 
   <div class="card-body px-0 pt-3 pb-2">
@@ -108,15 +108,15 @@ include 'core/header.php';
           <input type="date" name="date_start" class="form-control" value="<?= htmlspecialchars($dateStart) ?>" style="min-width:170px;">
           <input type="date" name="date_end" class="form-control" value="<?= htmlspecialchars($dateEnd) ?>" style="min-width:170px;">
           <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari No Polisi..." value="<?= htmlspecialchars($search) ?>" style="min-width:260px;">
-          <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
+          <button class="btn btn-outline-primary mt-3" type="submit"><i class="fas fa-search"></i></button>
         </form>
 
-        <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success" target="_blank">
+        <a href="index.php?page=riwayat_export&<?= $exportQuery ?>" class="btn btn-sm btn-outline-success mt-3" target="_blank">
           <i class="fas fa-file-excel"></i> Export Excel
         </a>
 
         <?php if ($canPrintInvoice): ?>
-          <a href="index.php?page=riwayat_invoice&<?= $exportQuery ?>" class="btn btn-sm btn-outline-danger" target="_blank">
+          <a href="index.php?page=riwayat_invoice&<?= $exportQuery ?>" class="btn btn-sm btn-outline-danger mt-3" target="_blank">
             <i class="fas fa-file-pdf"></i> Cetak PDF
           </a>
         <?php endif; ?>

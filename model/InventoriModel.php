@@ -12,8 +12,55 @@ class InventoriModel {
     /* ===============================
        GET ALL DATA
     =============================== */
-    public function getAll() {
-        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} ORDER BY id DESC");
+    public function getAll($search = '', $stokFilter = '', $kategoriFilter = '') {
+        $conditions = [];
+        $params = [];
+        $types = '';
+
+        if ($search !== '') {
+            $conditions[] = "nama LIKE ?";
+            $params[] = '%' . $search . '%';
+            $types .= 's';
+        }
+
+        if ($stokFilter === 'aman') {
+            $conditions[] = "stok > peringatan_stok";
+        } elseif ($stokFilter === 'peringatan') {
+            $conditions[] = "stok <= peringatan_stok";
+        }
+
+        if ($kategoriFilter !== '') {
+            $conditions[] = "kategori = ?";
+            $params[] = $kategoriFilter;
+            $types .= 's';
+        }
+
+        $sql = "SELECT * FROM {$this->table}";
+        if (!empty($conditions)) {
+            $sql .= " WHERE " . implode(" AND ", $conditions);
+        }
+        $sql .= " ORDER BY id DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    /* ===============================
+       GET KATEGORI SUMMARY
+    =============================== */
+    public function getKategoriSummary() {
+        $stmt = $this->conn->prepare("
+            SELECT kategori, COUNT(*) AS total
+            FROM {$this->table}
+            WHERE kategori IS NOT NULL AND kategori <> ''
+            GROUP BY kategori
+            ORDER BY kategori ASC
+        ");
         $stmt->execute();
         $result = $stmt->get_result();
         return $result->fetch_all(MYSQLI_ASSOC);

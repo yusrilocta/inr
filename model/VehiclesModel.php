@@ -31,7 +31,23 @@ class VehiclesModel {
     /* =========================
        GET ALL DATA
     ========================== */
-    public function getAll() {
+    public function getAll($search = '') {
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $sql = "SELECT * FROM {$this->table}
+                    WHERE nopol LIKE ?
+                       OR brand LIKE ?
+                       OR model LIKE ?
+                       OR type LIKE ?
+                       OR driver_nm LIKE ?
+                       OR vehicle_id LIKE ?
+                    ORDER BY id DESC";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bind_param("ssssss", $like, $like, $like, $like, $like, $like);
+            $stmt->execute();
+            return $stmt->get_result();
+        }
+
         $sql = "SELECT * FROM {$this->table} ORDER BY id DESC";
         return $this->conn->query($sql);
     }
@@ -77,6 +93,7 @@ class VehiclesModel {
         $bpkb_no        = $this->esc($data, 'bpkb_no');
         $chasis_no      = $this->esc($data, 'chasis_no');
         $year_production= $this->esc($data, 'year_production');
+        $phone_no       = $this->esc($data, 'phone_no');
         $last_service   = !empty($data['last_service']) ? "'" . date('Y-m-d', strtotime($data['last_service'])) . "'" : "NULL";
         $last_km_service= !empty($data['last_km_service']) ? (int)$data['last_km_service'] : "NULL";
 
@@ -88,12 +105,12 @@ class VehiclesModel {
             INSERT INTO {$this->table}
             (vehicle_id, gps_sn, nopol, type, model, brand,
              car_group, driver_nm, remark, engine_no,total_km, engine_capacity,
-             kir_no, stnk_no, bpkb_no, chasis_no,
+             kir_no, stnk_no, bpkb_no, chasis_no, phone_no,
              year_production, legal_date, last_service, last_km_service)
             VALUES
             ('$vehicle_id', '$gps_sn', '$nopol', '$type', '$model', '$brand',
              '$car_group', '$driver_nm', '$remark', '$engine_no','$total_km','$engine_capacity',
-             '$kir_no', '$stnk_no', '$bpkb_no', '$chasis_no',
+             '$kir_no', '$stnk_no', '$bpkb_no', '$chasis_no', '$phone_no',
              '$year_production', $legal_date, $last_service, $last_km_service)
         ";
 
@@ -123,6 +140,7 @@ class VehiclesModel {
         $bpkb_no        = $this->esc($data, 'bpkb_no');
         $chasis_no      = $this->esc($data, 'chasis_no');
         $year_production= $this->esc($data, 'year_production');
+        $phone_no       = $this->esc($data, 'phone_no');
         $last_service   = !empty($data['last_service']) ? "'" . date('Y-m-d', strtotime($data['last_service'])) . "'" : "NULL";
         $last_km_service= !empty($data['last_km_service']) ? (int)$data['last_km_service'] : "NULL";
 
@@ -147,6 +165,7 @@ class VehiclesModel {
                 stnk_no='$stnk_no',
                 bpkb_no='$bpkb_no',
                 chasis_no='$chasis_no',
+                phone_no='$phone_no',
                 year_production='$year_production',
                 legal_date=$legal_date,
                 last_service=$last_service,

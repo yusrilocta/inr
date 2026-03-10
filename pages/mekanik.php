@@ -1,27 +1,27 @@
 <?php
 require_once __DIR__ . '/../db/db.php';
-require_once __DIR__ . '/../model/DriverModel.php';
+require_once __DIR__ . '/../model/MekanikModel.php';
 
-$model = new DriverModel($conn);
+$model = new MekanikModel($conn);
 
 $action = $_GET['action'] ?? null;
 
 // HANDLE ACTION
 if ($action == 'create' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $model->create($_POST);
-    header("Location: index.php?page=driver");
+    header("Location: index.php?page=mekanik");
     exit;
 }
 
 if ($action == 'update' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $model->update($_GET['id'], $_POST);
-    header("Location: index.php?page=driver");
+    header("Location: index.php?page=mekanik");
     exit;
 }
 
 if ($action == 'delete') {
     $model->delete($_GET['id']);
-    header("Location: index.php?page=driver");
+    header("Location: index.php?page=mekanik");
     exit;
 }
 
@@ -33,11 +33,11 @@ include 'core/header.php';
 
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Data Driver</h5>
+    <h5 class="mb-0">Data Mekanik</h5>
 
-    <a href="index.php?page=driver&action=create" 
+    <a href="index.php?page=mekanik&action=create" 
        class="btn bg-gradient-success btn-sm">
-       <i class="fas fa-plus me-1"></i> Tambah Driver
+       <i class="fas fa-plus me-1"></i> Tambah Mekanik
     </a>
   </div>
 
@@ -52,24 +52,18 @@ include 'core/header.php';
   <div class="d-flex flex-nowrap align-items-center gap-2 m-0">
     <input type="text" id="searchInput"
            class="form-control"
-           placeholder="Cari driver..."
+           placeholder="Cari mekanik..."
            style="min-width:260px;">
   </div>
-
-  <a href="index.php?page=driver_export" class="btn btn-sm btn-outline-success mt-3" target="_blank">
-    <i class="fas fa-file-excel"></i> Export Excel
-  </a>
 </div>
     </div>
 </div>
-      <table id="driverTable" class="table align-items-center mb-0">
+      <table id="mekanikTable" class="table align-items-center mb-0">
         <thead>
           <tr>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="0">Code</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="1">Nama</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="2">Phone</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="3">SIM</th>
-            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="4">Deposit</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="0">Nama</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="1">No KTP</th>
+            <th class="text-xs text-uppercase text-secondary font-weight-bolder sortable-header" data-sort-index="2">Alamat</th>
             <th class="text-end text-secondary">Aksi</th>
           </tr>
         </thead>
@@ -80,44 +74,26 @@ include 'core/header.php';
           <tr>
 
             <td>
-              <p class="text-sm font-weight-bold mb-0"><?= $row['code'] ?></p>
+              <p class="text-sm font-weight-bold mb-0"><?= $row['nama'] ?></p>
             </td>
 
             <td>
-              <p class="text-sm mb-0"><?= $row['name'] ?></p>
+              <p class="text-sm mb-0"><?= $row['no_ktp'] ?></p>
             </td>
 
             <td>
-              <p class="text-sm mb-0"><?= $row['phone_no'] ?></p>
-            </td>
-
-            <td>
-              <span class="badge badge-sm bg-gradient-info">
-                <?= $row['sim_class'] ?>
-              </span>
-            </td>
-
-            <td>
-              <?php if($row['deposit'] > 0): ?>
-                <span class="badge badge-sm bg-gradient-success">
-                  Rp <?= number_format($row['deposit'],0,',','.') ?>
-                </span>
-              <?php else: ?>
-                <span class="badge badge-sm bg-gradient-secondary">
-                  Rp 0
-                </span>
-              <?php endif; ?>
+              <p class="text-sm mb-0"><?= $row['alamat'] ?></p>
             </td>
 
             <td class="text-end">
-              <a href="index.php?page=driver&action=edit&id=<?= $row['id'] ?>" 
+              <a href="index.php?page=mekanik&action=edit&id=<?= $row['id'] ?>" 
                  class="btn btn-outline-warning">
                  <i class="fas fa-edit"></i>
               </a>
 
-              <a href="index.php?page=driver&action=delete&id=<?= $row['id'] ?>" 
+              <a href="index.php?page=mekanik&action=delete&id=<?= $row['id'] ?>" 
                  class="btn btn-outline-danger"
-                 onclick="return confirm('Yakin hapus driver?')">
+                 onclick="return confirm('Yakin hapus mekanik?')">
                  <i class="fas fa-trash"></i>
               </a>
             </td>
@@ -144,14 +120,9 @@ include 'core/header.php';
 if ($action === 'create' || $action === 'edit'):
 
 $data_edit = [
-    'code' => '',
-    'name' => '',
-    'addr' => '',
-    'phone_no' => '',
-    'sim_no' => '',
-    'sim_class' => '',
-    'deposit' => 0,
-    'join_date' => date('Y-m-d')
+    'nama' => '',
+    'no_ktp' => '',
+    'alamat' => ''
 ];
 
 if ($action === 'edit') {
@@ -160,7 +131,7 @@ if ($action === 'edit') {
 ?>
 
 <style>
-  .driver-overlay {
+  .mekanik-overlay {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.45);
@@ -170,70 +141,40 @@ if ($action === 'edit') {
     justify-content: center;
     padding: 1rem;
   }
-  .driver-overlay-card {
-    width: min(920px, 100%);
+  .mekanik-overlay-card {
+    width: min(820px, 100%);
     max-height: 92vh;
     overflow-y: auto;
   }
 </style>
 
-<div class="driver-overlay">
-  <div class="card shadow-lg border-0 driver-overlay-card">
+<div class="mekanik-overlay">
+  <div class="card shadow-lg border-0 mekanik-overlay-card">
     <div class="card-header pb-0 d-flex justify-content-between align-items-center">
-      <h5 class="mb-0"><?= $action === 'create' ? 'Tambah Driver' : 'Edit Driver' ?></h5>
-      <a href="index.php?page=driver" class="btn btn-sm btn-outline-secondary">Tutup</a>
+      <h5 class="mb-0"><?= $action === 'create' ? 'Tambah Mekanik' : 'Edit Mekanik' ?></h5>
+      <a href="index.php?page=mekanik" class="btn btn-sm btn-outline-secondary">Tutup</a>
     </div>
 
     <div class="card-body">
-      <form method="POST" action="index.php?page=driver&action=<?= $action === 'edit' ? 'update&id='.$_GET['id'] : 'create' ?>">
+      <form method="POST" action="index.php?page=mekanik&action=<?= $action === 'edit' ? 'update&id='.$_GET['id'] : 'create' ?>">
 
         <div class="row">
 
           <div class="col-md-6 mb-3">
-            <label class="form-label">Code</label>
-            <input type="text" name="code" class="form-control"
-                   value="<?= $data_edit['code'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
             <label class="form-label">Nama</label>
-            <input type="text" name="name" class="form-control"
-                   value="<?= $data_edit['name'] ?>">
+            <input type="text" name="nama" class="form-control"
+                   value="<?= $data_edit['nama'] ?>" required>
           </div>
 
           <div class="col-md-6 mb-3">
-            <label class="form-label">Phone</label>
-            <input type="text" name="phone_no" class="form-control"
-                   value="<?= $data_edit['phone_no'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">SIM No</label>
-            <input type="text" name="sim_no" class="form-control"
-                   value="<?= $data_edit['sim_no'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">SIM Class</label>
-            <input type="text" name="sim_class" class="form-control"
-                   value="<?= $data_edit['sim_class'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">Deposit</label>
-            <input type="number" name="deposit" class="form-control"
-                   value="<?= $data_edit['deposit'] ?>">
-          </div>
-
-          <div class="col-md-6 mb-3">
-            <label class="form-label">Join Date</label>
-            <input type="date" name="join_date" class="form-control"
-                   value="<?= date('Y-m-d', strtotime($data_edit['join_date'])) ?>">
+            <label class="form-label">No KTP</label>
+            <input type="text" name="no_ktp" class="form-control"
+                   value="<?= $data_edit['no_ktp'] ?>" required>
           </div>
 
           <div class="col-md-12 mb-3">
             <label class="form-label">Alamat</label>
-            <textarea name="addr" class="form-control"><?= $data_edit['addr'] ?></textarea>
+            <textarea name="alamat" class="form-control" required><?= $data_edit['alamat'] ?></textarea>
           </div>
 
         </div>
@@ -241,9 +182,9 @@ if ($action === 'edit') {
         <hr>
 
         <div class="d-flex justify-content-between">
-          <a href="index.php?page=driver" class="btn btn-outline-secondary">Kembali</a>
+          <a href="index.php?page=mekanik" class="btn btn-outline-secondary">Kembali</a>
           <button type="submit" class="btn bg-gradient-primary">
-            <?= $action === 'create' ? 'Simpan Driver' : 'Update Driver' ?>
+            <?= $action === 'create' ? 'Simpan Mekanik' : 'Update Mekanik' ?>
           </button>
         </div>
 
@@ -259,7 +200,7 @@ let currentPage = 1;
 let sortColumnIndex = null;
 let sortDirection = 1;
 
-const table = document.getElementById("driverTable");
+const table = document.getElementById("mekanikTable");
 const tbody = table.querySelector("tbody");
 const rows = Array.from(tbody.querySelectorAll("tr"));
 const sortableHeaders = table.querySelectorAll(".sortable-header");
@@ -278,7 +219,7 @@ function updateSortIndicators() {
 
         const index = Number(header.dataset.sortIndex);
         if (sortColumnIndex === index) {
-            header.textContent = `${originalLabel} ${sortDirection === 1 ? "▲" : "▼"}`;
+            header.textContent = `${originalLabel} ${sortDirection === 1 ? "â–²" : "â–¼"}`;
         } else {
             header.textContent = originalLabel;
         }
