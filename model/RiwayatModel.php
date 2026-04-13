@@ -612,8 +612,8 @@ class RiwayatModel {
 
         $insertItem = $this->conn->prepare("
             INSERT INTO {$this->itemTable}
-            (riwayat_id, id_barang, jumlah, harga_satuan, total_harga, mekanik_id, tools)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (riwayat_id, id_barang, jumlah, harga_satuan, total_harga, mekanik_id, tools, foto_rusak, foto_selesai)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         foreach ($items as $item) {
@@ -623,16 +623,20 @@ class RiwayatModel {
             $totalHarga = $jumlah * $hargaSatuan;
             $mekanikId = $item['mekanik_id'];
             $tools = $item['tools'];
+            $fotoRusak = $this->saveUploadFile($item['foto_rusak_file'] ?? null, $item['foto_rusak'] ?? null, 'foto_rusak');
+            $fotoSelesai = $this->saveUploadFile($item['foto_selesai_file'] ?? null, $item['foto_selesai'] ?? null, 'foto_selesai');
 
             $insertItem->bind_param(
-                "iiiddis",
+                "iiiddisss",
                 $riwayatId,
                 $idBarang,
                 $jumlah,
                 $hargaSatuan,
                 $totalHarga,
                 $mekanikId,
-                $tools
+                $tools,
+                $fotoRusak,
+                $fotoSelesai
             );
             $insertItem->execute();
 
@@ -656,13 +660,19 @@ class RiwayatModel {
         $hargaSatuan = $data['harga_satuan'] ?? [];
         $mekanikId = $data['mekanik_id'] ?? [];
         $tools = $data['tools'] ?? [];
+        $fotoRusakFiles = $this->normalizeFileArray($data['foto_rusak'] ?? []);
+        $fotoSelesaiFiles = $this->normalizeFileArray($data['foto_selesai'] ?? []);
+        $existingFotoRusak = $data['existing_foto_rusak'] ?? [];
+        $existingFotoSelesai = $data['existing_foto_selesai'] ?? [];
 
         $isBatch =
             is_array($idBarang) ||
             is_array($jumlah) ||
             is_array($hargaSatuan) ||
             is_array($mekanikId) ||
-            is_array($tools);
+            is_array($tools) ||
+            is_array($existingFotoRusak) ||
+            is_array($existingFotoSelesai);
 
         if (!$isBatch) {
             $idBarang = [$idBarang];
@@ -670,6 +680,8 @@ class RiwayatModel {
             $hargaSatuan = [$hargaSatuan];
             $mekanikId = [$mekanikId];
             $tools = [$tools];
+            $existingFotoRusak = [$existingFotoRusak];
+            $existingFotoSelesai = [$existingFotoSelesai];
         }
 
         $idBarangList = is_array($idBarang) ? $idBarang : [];
@@ -677,7 +689,17 @@ class RiwayatModel {
         $hargaList = is_array($hargaSatuan) ? $hargaSatuan : [];
         $mekanikList = is_array($mekanikId) ? $mekanikId : [];
         $toolsList = is_array($tools) ? $tools : [];
-        $max = max(count($idBarangList), count($jumlahList), count($hargaList), count($mekanikList), count($toolsList));
+        $existingFotoRusakList = is_array($existingFotoRusak) ? $existingFotoRusak : [];
+        $existingFotoSelesaiList = is_array($existingFotoSelesai) ? $existingFotoSelesai : [];
+        $max = max(
+            count($idBarangList),
+            count($jumlahList),
+            count($hargaList),
+            count($mekanikList),
+            count($toolsList),
+            count($existingFotoRusakList),
+            count($existingFotoSelesaiList)
+        );
 
         for ($i = 0; $i < $max; $i++) {
             $rawId = $idBarangList[$i] ?? '';
@@ -685,6 +707,8 @@ class RiwayatModel {
             $rawHarga = $hargaList[$i] ?? 0;
             $rawMekanik = $mekanikList[$i] ?? '';
             $rawTools = strtolower(trim((string)($toolsList[$i] ?? 'tidak')));
+            $existingRusak = $existingFotoRusakList[$i] ?? null;
+            $existingSelesai = $existingFotoSelesaiList[$i] ?? null;
 
             $normalizedId = ($rawId !== '' && $rawId !== null) ? (int)$rawId : null;
             $normalizedJumlah = (int)$rawJumlah;
@@ -713,10 +737,102 @@ class RiwayatModel {
                 'jumlah' => $normalizedJumlah,
                 'harga_satuan' => $normalizedHarga,
                 'mekanik_id' => $normalizedMekanik,
-                'tools' => $normalizedTools
+                'tools' => $normalizedTools,
+                'foto_rusak_file' => $fotoRusakFiles[$i] ?? null,
+                'foto_selesai_file' => $fotoSelesaiFiles[$i] ?? null,
+                'foto_rusak' => is_string($existingRusak) ? $existingRusak : null,
+                'foto_selesai' => is_string($existingSelesai) ? $existingSelesai : null,
             ];
         }
 
         return $items;
+    }
+
+    private function normalizeFileArray($fileCollection) {
+        if (!is_array($fileCollection) || !isset($fileCollection['name'])) {
+            return [];
+        }
+
+        $files = [];
+        if (is_array($fileCollection['name'])) {
+            foreach ($fileCollection['name'] as $i => $name) {
+                $files[$i] = [
+                    'name' => $name,
+                    'type' => $fileCollection['type'][$i] ?? '',
+                    'tmp_name' => $fileCollection['tmp_name'][$i] ?? '',
+                    'error' => $fileCollection['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+                    'size' => $fileCollection['size'][$i] ?? 0,
+                ];
+            }
+        } else {
+            $files[0] = $fileCollection;
+        }
+
+        return $files;
+    }
+
+    private function saveUploadFile($file, $existingName = null, $prefix = 'foto') {
+        if (!is_array($file)) {
+            return is_string($existingName) && $existingName !== '' ? $existingName : null;
+        }
+
+        $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($uploadError !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
+            if ($uploadError !== UPLOAD_ERR_NO_FILE) {
+                error_log(sprintf(
+                    '[RiwayatModel] Upload %s gagal. error=%d, name=%s',
+                    $prefix,
+                    $uploadError,
+                    (string)($file['name'] ?? '')
+                ));
+            }
+            return is_string($existingName) && $existingName !== '' ? $existingName : null;
+        }
+
+        if (!is_uploaded_file($file['tmp_name'])) {
+            error_log(sprintf(
+                '[RiwayatModel] File %s bukan uploaded file yang valid. tmp_name=%s, name=%s',
+                $prefix,
+                (string)($file['tmp_name'] ?? ''),
+                (string)($file['name'] ?? '')
+            ));
+            return is_string($existingName) && $existingName !== '' ? $existingName : null;
+        }
+
+        $uploadDir = dirname(__DIR__) . '/pages/bukti/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        if (!is_writable($uploadDir)) {
+            @chmod($uploadDir, 0777);
+        }
+
+        if (!is_writable($uploadDir)) {
+            error_log(sprintf(
+                '[RiwayatModel] Folder upload tidak writable. path=%s',
+                $uploadDir
+            ));
+            return is_string($existingName) && $existingName !== '' ? $existingName : null;
+        }
+
+        $originalName = $file['name'] ?? '';
+        $extension = pathinfo($originalName, PATHINFO_EXTENSION);
+        $extension = $extension ? '.' . preg_replace('/[^a-zA-Z0-9]/', '', $extension) : '';
+        $filename = sprintf('%s_%s_%s%s', $prefix, time(), bin2hex(random_bytes(4)), $extension);
+        $targetPath = $uploadDir . $filename;
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            error_log(sprintf(
+                '[RiwayatModel] move_uploaded_file gagal. prefix=%s, tmp_name=%s, target=%s, name=%s',
+                $prefix,
+                (string)($file['tmp_name'] ?? ''),
+                $targetPath,
+                $originalName
+            ));
+            return is_string($existingName) && $existingName !== '' ? $existingName : null;
+        }
+
+        return $filename;
     }
 }

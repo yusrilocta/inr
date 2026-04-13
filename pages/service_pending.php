@@ -6,13 +6,19 @@ $model = new RiwayatModel($conn);
 $action = $_GET['action'] ?? null;
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $model->create($_POST);
+    $postData = $_POST;
+    $postData['foto_rusak'] = $_FILES['foto_rusak'] ?? null;
+    $postData['foto_selesai'] = $_FILES['foto_selesai'] ?? null;
+    $model->create($postData);
     header("Location: index.php?page=service_pending");
     exit;
 }
 
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $model->update($_GET['id'] ?? 0, $_POST);
+    $postData = $_POST;
+    $postData['foto_rusak'] = $_FILES['foto_rusak'] ?? null;
+    $postData['foto_selesai'] = $_FILES['foto_selesai'] ?? null;
+    $model->update($_GET['id'] ?? 0, $postData);
     header("Location: index.php?page=service_pending");
     exit;
 }
@@ -73,7 +79,7 @@ include 'core/header.php';
   <div class="card-header pb-0 d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Data Riwayat Service</h5>
     <a href="index.php?page=service_pending&action=create" class="btn bg-gradient-success btn-sm">
-      <i class="fas fa-plus me-1"></i> Tambah Riwayat
+      <i class="fas fa-plus me-1"></i> Tambah Mobil Masuk Service
     </a>
   </div>
 
@@ -239,7 +245,7 @@ if ($action === 'create' || $action === 'edit'):
     </div>
 
     <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
-      <form method="POST" action="index.php?page=service_pending&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
+      <form method="POST" enctype="multipart/form-data" action="index.php?page=service_pending&action=<?= $action === 'edit' ? 'update&id=' . (int)($_GET['id'] ?? 0) : 'create' ?>">
         <div class="row">
           <div class="col-md-6 mb-3">
             <label>No Polisi</label>
@@ -352,9 +358,26 @@ if ($action === 'create' || $action === 'edit'):
                       </select>
                     </div>
 
+                  </div>
+                  <div class="row">
+                    <div class="col-md-6 mb-2">
+                      <label>Foto Rusak</label>
+                      <input type="file" accept="image/*" capture="environment" name="foto_rusak[]" class="form-control foto-rusak-input">
+                    </div>
+                    <div class="col-md-6 mb-2">
+                      <label>Foto Selesai</label>
+                      <input type="file" accept="image/*" capture="environment" name="foto_selesai[]" class="form-control foto-selesai-input">
+                    </div>
+                  </div>
+
+                  <input type="hidden" name="existing_foto_rusak[]" value="<?= htmlspecialchars($item['foto_rusak'] ?? '') ?>">
+                  <input type="hidden" name="existing_foto_selesai[]" value="<?= htmlspecialchars($item['foto_selesai'] ?? '') ?>">
+
+                  <div class="row">
                     <div class="col-md-12 d-flex justify-content-end">
                       <button type="button" class="btn btn-sm btn-outline-danger remove-barang-item">Hapus Baris</button>
                     </div>
+                  </div>
                   </div>
                 </div>
               <?php endforeach; ?>
@@ -582,7 +605,15 @@ function bindBatchBarangUI() {
         el.selectedIndex = 0;
       }
     });
-    clone.querySelectorAll('input').forEach((el) => { el.value = '0'; });
+    clone.querySelectorAll('input').forEach((el) => {
+      if (el.type === 'file' || el.type === 'hidden') {
+        el.value = '';
+      } else if (el.type === 'number') {
+        el.value = '0';
+      } else {
+        el.value = '';
+      }
+    });
     batchWrapper.appendChild(clone);
     recalculateBatchTotal();
   });
@@ -601,7 +632,15 @@ function bindBatchBarangUI() {
           el.selectedIndex = 0;
         }
       });
-      item.querySelectorAll('input').forEach((el) => { el.value = '0'; });
+      item.querySelectorAll('input').forEach((el) => {
+        if (el.type === 'file' || el.type === 'hidden') {
+          el.value = '';
+        } else if (el.type === 'number') {
+          el.value = '0';
+        } else {
+          el.value = '';
+        }
+      });
     } else {
       item.remove();
     }
