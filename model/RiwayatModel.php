@@ -488,6 +488,82 @@ class RiwayatModel {
         return $stmt->execute();
     }
 
+    public function completeServiceWithFotoSelesai($id, array $data) {
+        $id = (int)$id;
+        if ($id <= 0) {
+            return false;
+        }
+
+        try {
+            $this->conn->begin_transaction();
+
+            $old = $this->getById($id);
+            if (!$old) {
+                $this->conn->rollback();
+                return false;
+            }
+
+            $oldItems = $this->getItemsByRiwayatId($id);
+            $itemsById = [];
+            foreach ($oldItems as $item) {
+                $itemId = (int)($item['id'] ?? 0);
+                if ($itemId > 0) {
+                    $itemsById[$itemId] = $item;
+                }
+            }
+
+            $itemIds = $data['item_id'] ?? [];
+            $existingFotoSelesai = $data['existing_foto_selesai'] ?? [];
+            $fotoSelesaiFiles = $this->normalizeFileArray($data['foto_selesai'] ?? []);
+
+            if (!is_array($itemIds)) {
+                $itemIds = [$itemIds];
+            }
+            if (!is_array($existingFotoSelesai)) {
+                $existingFotoSelesai = [$existingFotoSelesai];
+            }
+
+            $updateItem = $this->conn->prepare("
+                UPDATE {$this->itemTable}
+                SET foto_selesai = ?
+                WHERE id = ? AND riwayat_id = ?
+            ");
+
+            foreach ($itemIds as $index => $itemIdValue) {
+                $itemId = (int)$itemIdValue;
+                if ($itemId <= 0 || !isset($itemsById[$itemId])) {
+                    continue;
+                }
+
+                $currentItem = $itemsById[$itemId];
+                $existingName = $existingFotoSelesai[$index] ?? ($currentItem['foto_selesai'] ?? null);
+                $savedName = $this->saveUploadFile(
+                    $fotoSelesaiFiles[$index] ?? null,
+                    is_string($existingName) ? $existingName : null,
+                    'foto_selesai'
+                );
+
+                $updateItem->bind_param("sii", $savedName, $itemId, $id);
+                $updateItem->execute();
+            }
+
+            $stmt = $this->conn->prepare("
+                UPDATE {$this->table}
+                SET status = 'selesai',
+                    tgl_selesai = CURDATE()
+                WHERE id = ?
+            ");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+
+            $this->conn->commit();
+            return true;
+        } catch (Throwable $e) {
+            $this->conn->rollback();
+            return false;
+        }
+    }
+
     /* ===============================
        DELETE
     =============================== */
@@ -575,9 +651,13 @@ class RiwayatModel {
 
     private function getItemsByRiwayatId($riwayatId) {
         $stmt = $this->conn->prepare("
-            SELECT il.*, i.nama AS nama_barang
+            SELECT
+                il.*,
+                i.nama AS nama_barang,
+                m.nama AS nama_mekanik
             FROM {$this->itemTable} il
             LEFT JOIN inventori i ON i.id = il.id_barang
+            LEFT JOIN mekanik m ON m.id = il.mekanik_id
             WHERE il.riwayat_id = ?
             ORDER BY il.id ASC
         ");

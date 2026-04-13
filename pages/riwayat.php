@@ -23,6 +23,26 @@ if ($action === 'delete') {
     exit;
 }
 
+if ($action === 'detail_json') {
+    header('Content-Type: application/json');
+
+    $detail = $model->getById($_GET['id'] ?? 0);
+    if (!$detail) {
+        http_response_code(404);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Data riwayat tidak ditemukan.'
+        ]);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data' => $detail
+    ]);
+    exit;
+}
+
 $search = trim($_GET['search'] ?? '');
 $nopolFilter = trim($_GET['nopol'] ?? '');
 if ($nopolFilter === '') {
@@ -60,6 +80,116 @@ include 'core/header.php';
 
 .riwayat-overlay-card {
   width: min(1050px, 100%);
+}
+
+.detail-item-table th,
+.detail-item-table td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.detail-item-table th {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.detail-photo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 140px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  color: #0f172a;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.detail-photo-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.detail-photo-button img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.detail-photo-button span {
+  display: block;
+  text-align: left;
+  line-height: 1.2;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.detail-photo-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.85rem;
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px dashed rgba(100, 116, 139, 0.3);
+  font-size: 0.78rem;
+}
+
+.image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  z-index: 1065;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.image-preview-card {
+  width: min(760px, 100%);
+}
+
+.image-preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.image-preview-stage img {
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+@media (max-width: 768px) {
+  .detail-photo-button {
+    min-width: 118px;
+    padding: 0.45rem;
+    gap: 0.45rem;
+  }
+
+  .detail-photo-button img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .detail-photo-button span,
+  .detail-photo-empty {
+    font-size: 0.72rem;
+  }
 }
 </style>
 
@@ -401,8 +531,45 @@ if ($action === 'create' || $action === 'edit'):
         <div class="col-md-4 mb-3"><label class="text-muted">Tgl Selesai</label><p id="detail_tgl_selesai">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Total Qty Item</label><p id="detail_total_qty">-</p></div>
         <div class="col-md-4 mb-3"><label class="text-muted">Total Harga</label><p id="detail_total_harga">-</p></div>
-        <div class="col-md-12 mb-3"><label class="text-muted">Item Service</label><p id="detail_item_summary">-</p></div>
+        <div class="col-md-12 mb-3">
+          <label class="text-muted">Item Service</label>
+          <div class="table-responsive">
+            <table class="table table-sm align-items-center mb-0 detail-item-table">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Barang</th>
+                  <th>Qty</th>
+                  <th>Harga</th>
+                  <th>Mekanik</th>
+                  <th>Tools</th>
+                  <th>Foto Rusak</th>
+                  <th>Foto Selesai</th>
+                </tr>
+              </thead>
+              <tbody id="detail_items_table_body">
+                <tr>
+                  <td colspan="8" class="text-center text-secondary">Pilih data untuk melihat item service.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         <div class="col-md-12 mb-3"><label class="text-muted">Keterangan</label><p id="detail_keterangan">-</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="imagePreviewOverlay" class="image-preview-overlay">
+  <div class="card shadow-lg border-0 image-preview-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 id="imagePreviewTitle" class="mb-0">Preview Foto</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeImagePreview()">Tutup</button>
+    </div>
+    <div class="card-body">
+      <div class="image-preview-stage">
+        <img id="imagePreviewTarget" src="" alt="Preview Foto">
       </div>
     </div>
   </div>
@@ -410,9 +577,19 @@ if ($action === 'create' || $action === 'edit'):
 
 <script>
 let currentDetailRowData = null;
+let detailItemsRequestId = 0;
 
 function formatValue(val, fallback = '?') {
   return val === null || val === undefined || val === '' ? fallback : val;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function showDetailModal(rowData) {
@@ -432,19 +609,118 @@ function showDetailModal(rowData) {
   document.getElementById('detail_masa_pakai_km').textContent = formatValue(rowData.masa_pakai_km, 0) + ' KM';
   document.getElementById('detail_total_qty').textContent = formatValue(rowData.total_qty, 0);
   document.getElementById('detail_total_harga').textContent = 'Rp ' + Number(formatValue(rowData.total_harga, 0)).toLocaleString('id-ID');
-  document.getElementById('detail_item_summary').textContent = formatValue(rowData.item_summary, '-');
   document.getElementById('detail_keterangan').textContent = formatValue(rowData.keterangan, '-');
   document.getElementById('detailTitle').textContent = 'Detail Riwayat - ' + (rowData.nopol || '?');
+  renderDetailItemsTable([]);
   currentDetailRowData = rowData;
   const printBtn = document.getElementById('printDetailBtn');
   if (printBtn) {
     printBtn.disabled = false;
   }
   document.getElementById('detailModalOverlay').style.display = 'flex';
+  loadDetailItems(Number(rowData.id || 0));
 }
 
 function closeDetailModal() {
   document.getElementById('detailModalOverlay').style.display = 'none';
+}
+
+function getFotoPreviewButton(filename, label) {
+  if (!filename) {
+    return '<span class="detail-photo-empty">Tidak ada foto</span>';
+  }
+
+  const safeFile = encodeURIComponent(filename);
+  const safeLabel = escapeHtml(label || 'Preview Foto');
+  return `<button type="button" class="detail-photo-button" onclick="openImagePreview('pages/bukti/${safeFile}', &quot;${safeLabel}&quot;)"><img src="pages/bukti/${safeFile}" alt="${safeLabel}" loading="lazy"><span>Lihat foto</span></button>`;
+}
+
+function renderDetailItemsTable(items) {
+  const tbody = document.getElementById('detail_items_table_body');
+  if (!tbody) return;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center text-secondary">Belum ada item service.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = items.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(formatValue(item.nama_barang, '-'))}</td>
+      <td>${Number(item.jumlah || 0)}</td>
+      <td>Rp ${Number(item.harga_satuan || 0).toLocaleString('id-ID')}</td>
+      <td>${escapeHtml(formatValue(item.nama_mekanik || item.mekanik_id, '-'))}</td>
+      <td>${escapeHtml(formatValue(item.tools, '-'))}</td>
+      <td>${getFotoPreviewButton(item.foto_rusak, 'Foto Rusak - ' + (item.nama_barang || ('Item ' + (index + 1))))}</td>
+      <td>${getFotoPreviewButton(item.foto_selesai, 'Foto Selesai - ' + (item.nama_barang || ('Item ' + (index + 1))))}</td>
+    </tr>
+  `).join('');
+}
+
+function loadDetailItems(id) {
+  if (!id) {
+    renderDetailItemsTable([]);
+    return;
+  }
+
+  const tbody = document.getElementById('detail_items_table_body');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center text-secondary">Memuat item service...</td>
+      </tr>
+    `;
+  }
+
+  detailItemsRequestId += 1;
+  const requestId = detailItemsRequestId;
+
+  fetch('index.php?page=riwayat&action=detail_json&id=' + encodeURIComponent(id))
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Gagal memuat detail item.');
+      }
+      return response.json();
+    })
+    .then((payload) => {
+      if (requestId !== detailItemsRequestId) return;
+      renderDetailItemsTable(payload?.data?.items || []);
+    })
+    .catch(() => {
+      if (requestId !== detailItemsRequestId) return;
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="text-center text-danger">Detail item service gagal dimuat.</td>
+          </tr>
+        `;
+      }
+    });
+}
+
+function openImagePreview(src, title) {
+  const overlay = document.getElementById('imagePreviewOverlay');
+  const image = document.getElementById('imagePreviewTarget');
+  const heading = document.getElementById('imagePreviewTitle');
+  if (!overlay || !image || !heading) return;
+
+  image.src = src;
+  heading.textContent = title || 'Preview Foto';
+  overlay.style.display = 'flex';
+}
+
+function closeImagePreview() {
+  const overlay = document.getElementById('imagePreviewOverlay');
+  const image = document.getElementById('imagePreviewTarget');
+  if (!overlay || !image) return;
+
+  overlay.style.display = 'none';
+  image.src = '';
 }
 
 function printDetailInvoice() {
@@ -456,6 +732,10 @@ function printDetailInvoice() {
 
 document.getElementById('detailModalOverlay')?.addEventListener('click', function (e) {
   if (e.target === this) closeDetailModal();
+});
+
+document.getElementById('imagePreviewOverlay')?.addEventListener('click', function (e) {
+  if (e.target === this) closeImagePreview();
 });
 
 let rowsPerPage = 10;
