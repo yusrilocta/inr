@@ -5,8 +5,10 @@ require_once __DIR__ . '/../model/RiwayatModel.php';
 $model = new RiwayatModel($conn);
 $action = $_GET['action'] ?? null;
 
-if ($action === 'to_siap_operasi') {
-    $model->updateStatusToSiapOperasi($_GET['id'] ?? 0);
+if ($action === 'to_selesai' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $postData = $_POST;
+    $postData['foto_selesai'] = $_FILES['foto_selesai'] ?? null;
+    $model->completeServiceWithFotoSelesai($_GET['id'] ?? 0, $postData);
     header("Location: index.php?page=service_proses");
     exit;
 }
@@ -51,6 +53,10 @@ $exportQuery = http_build_query([
 
 $canPrintInvoice = $search !== '' && ($dateStart !== '' || $dateEnd !== '');
 $data = $model->getParentList($search, $vehicleFilter, $dateStart, $dateEnd, 'sedang dikerjakan', 'tgl_sedang_dikerjakan');
+$finishData = null;
+if ($action === 'to_selesai' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $finishData = $model->getById($_GET['id'] ?? 0);
+}
 
 include 'core/header.php';
 ?>
@@ -180,13 +186,23 @@ include 'core/header.php';
     font-size: 0.72rem;
   }
 }
+
+.finish-overlay-card {
+  width: min(920px, 100%);
+}
+
+.finish-item-card {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
 </style>
 
 <div class="container-fluid py-4">
 
 <div class="card shadow-lg border-0">
   <div class="card-header pb-0">
-    <h5 class="mb-0">Data Service Selesai</h5>
+    <h5 class="mb-0">Data Service Proses</h5>
   </div>
 
   <div class="card-body px-0 pt-3 pb-2">
@@ -194,7 +210,7 @@ include 'core/header.php';
       <?php if (!empty($vehicleFilter)): ?>
         <div class="alert alert-info mb-3">
           Menampilkan riwayat untuk vehicle <strong><?= htmlspecialchars($vehicleFilter) ?></strong>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=service_proses" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
@@ -203,13 +219,13 @@ include 'core/header.php';
           Menampilkan riwayat
           <?php if ($dateStart !== ''): ?>dari <strong><?= htmlspecialchars($dateStart) ?></strong><?php endif; ?>
           <?php if ($dateEnd !== ''): ?> sampai <strong><?= htmlspecialchars($dateEnd) ?></strong><?php endif; ?>
-          <a href="index.php?page=riwayat" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
+          <a href="index.php?page=service_proses" class="btn btn-sm btn-outline-secondary ms-2">Reset</a>
         </div>
       <?php endif; ?>
 
       <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2 px-1 mb-3 overflow-auto">
         <form method="GET" class="d-flex flex-nowrap align-items-center gap-2 m-0">
-          <input type="hidden" name="page" value="riwayat">
+          <input type="hidden" name="page" value="service_proses">
           <?php if ($vehicleFilter !== ''): ?>
             <input type="hidden" name="vehicle_id" value="<?= htmlspecialchars($vehicleFilter) ?>">
           <?php endif; ?>
@@ -279,11 +295,10 @@ include 'core/header.php';
             <td><?= (int)($row['total_qty'] ?? 0) ?></td>
             <td>Rp <?= number_format((float)($row['total_harga'] ?? 0), 0, ',', '.') ?></td>
             <td class="text-end">
-              <a href="index.php?page=service_proses&action=to_siap_operasi&id=<?= (int)$row['id'] ?>"
-                 class="btn btn-outline-primary"
-                 onclick="return confirm('Ubah status menjadi Siap Operasi?')"
-                 title="Siap Operasi">
-                <i class="fas fa-forward"></i>
+              <a href="index.php?page=service_proses&action=to_selesai&id=<?= (int)$row['id'] ?>"
+                 class="btn btn-outline-success"
+                 title="Upload Foto Selesai">
+                <i class="fas fa-check"></i>
               </a>
               <button class="btn btn-outline-info" onclick='showDetailModal(<?= json_encode($row, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT) ?>)'>
                 <i class="fa-sharp-duotone fa-solid fa-circle-info"></i>
@@ -304,6 +319,91 @@ include 'core/header.php';
     </div>
   </div>
 </div>
+
+<?php if ($action === 'to_selesai' && $finishData): ?>
+<div class="riwayat-overlay">
+  <div class="card shadow-lg border-0 finish-overlay-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <h5 class="mb-1">Upload Foto Selesai</h5>
+        <p class="mb-0 text-sm text-secondary">
+          Lengkapi foto selesai untuk service <strong><?= htmlspecialchars((string)($finishData['nopol'] ?? '-')) ?></strong> sebelum status diubah ke selesai.
+        </p>
+      </div>
+      <a href="index.php?page=service_proses" class="btn btn-sm btn-outline-secondary">Tutup</a>
+    </div>
+
+    <div class="card-body" style="max-height: 80vh; overflow-y: auto;">
+      <form method="POST" enctype="multipart/form-data" action="index.php?page=service_proses&action=to_selesai&id=<?= (int)($finishData['id'] ?? 0) ?>">
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label class="text-muted">No. Pol</label>
+            <div class="fw-bold"><?= htmlspecialchars((string)($finishData['nopol'] ?? '-')) ?></div>
+          </div>
+          <div class="col-md-4">
+            <label class="text-muted">Driver</label>
+            <div class="fw-bold"><?= htmlspecialchars((string)($finishData['driver_nm'] ?? '-')) ?></div>
+          </div>
+          <div class="col-md-4">
+            <label class="text-muted">Status Saat Ini</label>
+            <div><span class="badge bg-gradient-primary"><?= htmlspecialchars((string)($finishData['status'] ?? '-')) ?></span></div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-column gap-3">
+          <?php foreach (($finishData['items'] ?? []) as $index => $item): ?>
+            <div class="finish-item-card p-3">
+              <div class="row align-items-end">
+                <div class="col-md-3 mb-3">
+                  <label class="text-muted">Barang</label>
+                  <div class="fw-bold"><?= htmlspecialchars((string)($item['nama_barang'] ?? '-')) ?></div>
+                </div>
+                <div class="col-md-2 mb-3">
+                  <label class="text-muted">Qty</label>
+                  <div class="fw-bold"><?= (int)($item['jumlah'] ?? 0) ?></div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="text-muted">Mekanik</label>
+                  <div class="fw-bold"><?= htmlspecialchars((string)($item['nama_mekanik'] ?? ($item['mekanik_id'] ?? '-'))) ?></div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="text-muted">Foto Selesai Saat Ini</label>
+                  <div>
+                    <?php if (!empty($item['foto_selesai'])): ?>
+                      <a href="pages/bukti/<?= rawurlencode((string)$item['foto_selesai']) ?>" target="_blank" class="detail-photo-button text-decoration-none">
+                        <img src="pages/bukti/<?= rawurlencode((string)$item['foto_selesai']) ?>" alt="Foto selesai item <?= $index + 1 ?>">
+                        <span>Foto sudah ada</span>
+                      </a>
+                    <?php else: ?>
+                      <span class="detail-photo-empty">Belum ada foto</span>
+                    <?php endif; ?>
+                  </div>
+                </div>
+                <div class="col-md-12">
+                  <label>Upload Foto Selesai</label>
+                  <input type="file"
+                         name="foto_selesai[]"
+                         class="form-control"
+                         accept="image/*"
+                         capture="environment"
+                         <?= empty($item['foto_selesai']) ? 'required' : '' ?>>
+                  <input type="hidden" name="item_id[]" value="<?= (int)($item['id'] ?? 0) ?>">
+                  <input type="hidden" name="existing_foto_selesai[]" value="<?= htmlspecialchars((string)($item['foto_selesai'] ?? '')) ?>">
+                </div>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+
+        <div class="d-flex justify-content-between mt-4">
+          <a href="index.php?page=service_proses" class="btn btn-outline-secondary">Batal</a>
+          <button type="submit" class="btn bg-gradient-success">Simpan Foto dan Selesaikan Service</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <div id="detailModalOverlay" class="riwayat-overlay" style="display:none;">
   <div class="card shadow-lg border-0 riwayat-overlay-card">
